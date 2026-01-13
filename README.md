@@ -292,7 +292,9 @@ public override async Task UpAsync()
 
 ## Conditional Execution
 
-Skip migrations entirely based on environment:
+Use `ShouldRun` to skip migrations based on runtime conditions.
+
+### Skip in Test Environment
 
 ```csharp
 public class MyMigrationEngine : BaseMigrationEngine
@@ -307,6 +309,46 @@ public class MyMigrationEngine : BaseMigrationEngine
     public override bool ShouldRun => !_env.IsEnvironment("Test");
 }
 ```
+
+### Multi-Server Deployments
+
+When deploying to multiple servers (load-balanced, Kubernetes replicas, etc.), only **one instance** should run migrations to avoid conflicts. Designate a "master" server via configuration:
+
+```json
+// appsettings.json (on the master server only)
+{
+  "Migrations": {
+    "IsMaster": true
+  }
+}
+```
+
+```csharp
+public class MigrationSettings
+{
+    public bool IsMaster { get; set; }
+}
+
+public class MyMigrationEngine : BaseMigrationEngine
+{
+    private readonly MigrationSettings _settings;
+
+    public MyMigrationEngine(IOptions<MigrationSettings> settings)
+    {
+        _settings = settings.Value;
+    }
+
+    public override bool ShouldRun => _settings.IsMaster;
+}
+```
+
+```csharp
+// Program.cs
+builder.Services.Configure<MigrationSettings>(
+    builder.Configuration.GetSection("Migrations"));
+```
+
+This ensures migrations run only on the designated master instance, while other instances skip them and start normally.
 
 ## Async Support
 
