@@ -385,6 +385,56 @@ Why delete them:
 
 This keeps your codebase clean and avoids maintaining code that will never run again.
 
+### What happens if a migration fails?
+
+When a `DbContext` is configured, each migration runs inside a database transaction. If an exception occurs:
+- The transaction is rolled back automatically
+- The version is **not** registered
+- The application startup fails with the exception
+
+This ensures your database remains in a consistent state. Fix the migration code and restart the application.
+
+### How do I rollback a migration?
+
+There is no automatic `DownAsync()` method. This is by design - rollback logic is rarely the exact inverse of the upgrade logic, especially for data migrations.
+
+To undo a migration:
+1. Write a new migration with a higher version
+2. Implement the rollback logic in its `UpAsync()` method
+
+```csharp
+public class Migration_1_1_0_Rollback : BaseMigration
+{
+    public override Version Version => new(1, 1, 1);
+
+    public override async Task UpAsync()
+    {
+        // Undo what 1.1.0 did
+        await _db.Database.ExecuteSqlAsync($"DELETE FROM Settings WHERE Key = 'NewFeature'");
+    }
+}
+```
+
+### Can I use this without Entity Framework Core?
+
+**Yes.** The `DbContext` configuration is optional. Without it:
+- EF Core migrations are skipped
+- Migrations run without transactions (you manage your own if needed)
+- You still get version tracking via your engine implementation
+
+```csharp
+builder.Services.AddApplicationMigrations<MyMigrationEngine>();
+// No options.DbContext = ... needed
+```
+
+Your engine can store versions anywhere: a file, Redis, a custom table via raw SQL, etc.
+
+### What happens if two servers start simultaneously?
+
+Without the `IsMaster` pattern, both servers will attempt to run migrations. The database transaction provides some protection - if both try to register the same version, one will fail due to the ongoing transaction.
+
+However, this is not guaranteed to be safe in all scenarios. For production multi-server deployments, **always use the `IsMaster` pattern** (see [Multi-Server Deployments](#multi-server-deployments)) to ensure only one instance runs migrations.
+
 ## License
 
 MIT
