@@ -42,8 +42,24 @@ The library uses an abstract base class pattern for extensibility:
 ```csharp
 services.AddApplicationMigrations<MyMigrationEngine>(options =>
 {
-    options.DbContext<MyDbContext>(); // Optional: enables transactional migrations
+    options.DbContext = typeof(MyDbContext); // Optional: enables transactional migrations
 });
+```
+
+### Running Migrations
+
+Use the extension methods on `IApplicationBuilder` to run migrations at startup:
+
+```csharp
+var app = builder.Build();
+
+// Synchronous
+app.UseMigrations();
+
+// Or asynchronous
+await app.UseMigrationsAsync();
+
+app.Run();
 ```
 
 ### Public Interface
