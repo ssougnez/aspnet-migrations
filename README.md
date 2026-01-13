@@ -367,6 +367,24 @@ await app.UseMigrationsAsync();
 - .NET 9.0
 - .NET 10.0
 
+## FAQ
+
+### Should I keep old application migrations?
+
+**No.** Unlike EF Core migrations (which must be preserved to recreate the database schema), application migrations can be deleted once applied to all environments.
+
+Why delete them:
+- **Maintenance burden**: Schema changes break old migrations. If you remove a field that was initialized in an old migration, you'd have to update that migration - making its code illogical and confusing.
+- **No replay needed**: Application migrations are typically one-time data operations. You don't need to replay them from scratch like schema migrations.
+- **History is in Git**: If you ever need to reference old migration code, it's preserved in your version control history.
+
+**Recommended workflow:**
+1. Write and deploy a migration
+2. Once confirmed applied in production, delete the migration class
+3. Keep only migrations for versions not yet deployed everywhere
+
+This keeps your codebase clean and avoids maintaining code that will never run again.
+
 ## License
 
 MIT
