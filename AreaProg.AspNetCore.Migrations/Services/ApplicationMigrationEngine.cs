@@ -47,11 +47,7 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine
     /// <param name="serviceProvider">The service provider used to resolve dependencies for migrations.</param>
     /// <param name="options">The migration options containing configuration such as the DbContext type.</param>
     /// <param name="logger">The logger for recording migration progress and errors.</param>
-    public ApplicationMigrationEngine(
-        IServiceProvider serviceProvider,
-        ApplicationMigrationsOptions<T> options,
-        ILogger<IApplicationMigrationEngine> logger
-    )
+    public ApplicationMigrationEngine(IServiceProvider serviceProvider, ApplicationMigrationsOptions<T> options, ILogger<IApplicationMigrationEngine> logger)
     {
         _options = options;
         _serviceProvider = serviceProvider;
@@ -80,9 +76,7 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine
 
             using var scope = _serviceProvider.CreateScope();
 
-            var engine = ActivatorUtilities.CreateInstance(scope.ServiceProvider, _options.GetType().GetGenericArguments()[0].UnderlyingSystemType) as BaseMigrationEngine;
-
-            if (engine is null)
+            if (ActivatorUtilities.CreateInstance(scope.ServiceProvider, _options.GetType().GetGenericArguments()[0].UnderlyingSystemType) is not BaseMigrationEngine engine)
             {
                 _logger.LogError("No migration engine defined");
 
