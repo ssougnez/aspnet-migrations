@@ -1,0 +1,49 @@
+name: Publish to NuGet
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: dotnet build -c Release -p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o ./nupkg
+
+      - name: Publish to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: ./nupkg/*.nupkg
