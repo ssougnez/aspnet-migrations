@@ -99,6 +99,26 @@ public class AppMigrationEngine : EfCoreMigrationEngine
 - Graceful handling when database/table doesn't exist yet (uses `CanConnect` + try/catch)
 - Deduplication of version registration
 
+#### `SqlServerMigrationEngine` abstract class
+
+Extends `EfCoreMigrationEngine` with SQL Server distributed locking using `sp_getapplock`. Ensures only one application instance executes migrations at a time in multi-instance deployments.
+
+**Usage:**
+```csharp
+public class AppMigrationEngine : SqlServerMigrationEngine
+{
+    public AppMigrationEngine(
+        ApplicationMigrationsOptions<AppMigrationEngine> options,
+        IServiceProvider serviceProvider)
+        : base(serviceProvider, options.DbContext) { }
+}
+```
+
+**How it works:**
+- Acquires an exclusive application lock named `AppMigrations` before running migrations
+- Lock is released automatically when the connection/transaction ends
+- Other instances wait or skip based on lock timeout configuration
+
 #### `DefaultEfCoreMigrationEngine` and `DefaultSqlServerMigrationEngine` classes
 
 Ready-to-use concrete implementations for projects that don't need custom lifecycle hooks:
@@ -172,26 +192,6 @@ public class Migration_1_2_0 : BaseMigration
    └─ UpAsync()                                  ← Migration (per-version)
 8. RunAfterAsync()                               ← Engine (global)
 ```
-
-#### `SqlServerMigrationEngine` abstract class
-
-Extends `EfCoreMigrationEngine` with SQL Server distributed locking using `sp_getapplock`. Ensures only one application instance executes migrations at a time in multi-instance deployments.
-
-**Usage:**
-```csharp
-public class AppMigrationEngine : SqlServerMigrationEngine
-{
-    public AppMigrationEngine(
-        ApplicationMigrationsOptions<AppMigrationEngine> options,
-        IServiceProvider serviceProvider)
-        : base(serviceProvider, options.DbContext) { }
-}
-```
-
-**How it works:**
-- Acquires an exclusive application lock named `AppMigrations` before running migrations
-- Lock is released automatically when the connection/transaction ends
-- Other instances wait or skip based on lock timeout configuration
 
 ### Migration Guide from v1.x to v2.x
 
