@@ -20,16 +20,12 @@ dotnet add package AreaProg.AspNetCore.Migrations
 
 ## Quick Start
 
-### 1. Create a Table to Track Versions
+### 1. Add the AppliedMigration Entity to Your DbContext
 
-Add a simple entity and DbSet to your existing DbContext:
+The library provides an `AppliedMigration` entity for tracking versions:
 
 ```csharp
-public class AppliedMigration
-{
-    public int Id { get; set; }
-    public string Version { get; set; } = string.Empty;
-}
+using AreaProg.AspNetCore.Migrations.Models;
 
 public class MyDbContext : DbContext
 {
@@ -39,34 +35,36 @@ public class MyDbContext : DbContext
 }
 ```
 
-### 2. Create a Migration Engine
+### 2. Register a Migration Engine
 
-The engine tracks which versions have been applied:
+**Option A: Use the built-in engine (simplest)**
+
+No custom class needed:
 
 ```csharp
-public class MyMigrationEngine : BaseMigrationEngine
+builder.Services.AddApplicationMigrations<DefaultEfCoreMigrationEngine, MyDbContext>();
+```
+
+**Option B: Create a custom engine (for lifecycle hooks)**
+
+```csharp
+using AreaProg.AspNetCore.Migrations.Extensions;
+using AreaProg.AspNetCore.Migrations.Models;
+
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    IServiceProvider serviceProvider
+) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
 {
-    private readonly MyDbContext _db;
-
-    public MyMigrationEngine(MyDbContext db)
+    public override Task RunBeforeAsync()
     {
-        _db = db;
-    }
-
-    public override async Task<Version[]> GetAppliedVersionsAsync()
-    {
-        return await _db.AppliedMigrations
-            .Select(m => new Version(m.Version))
-            .ToArrayAsync();
-    }
-
-    public override async Task RegisterVersionAsync(Version version)
-    {
-        _db.AppliedMigrations.Add(new AppliedMigration { Version = version.ToString() });
-        await _db.SaveChangesAsync();
+        // Custom logic before migrations
+        return Task.CompletedTask;
     }
 }
 ```
+
+The base class handles `GetAppliedVersionsAsync()` and `RegisterVersionAsync()` automatically.
 
 ### 3. Create a Migration
 
@@ -115,6 +113,83 @@ That's it! At startup:
 1. EF Core database migrations run automatically
 2. Each application migration runs in a transaction
 3. Versions are tracked in your database
+
+## Multi-Instance Deployments (SQL Server)
+
+When running multiple application instances (load-balanced, Kubernetes, etc.), you need to ensure only **one instance** runs migrations at a time.
+
+### Using SqlServerMigrationEngine
+
+For SQL Server, use `DefaultSqlServerMigrationEngine` or inherit from `SqlServerMigrationEngine`. It uses `sp_getapplock` for distributed locking:
+
+**Option A: Use the built-in engine (simplest)**
+
+```csharp
+builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine, MyDbContext>();
+```
+
+**Option B: Create a custom engine (for custom lock settings or hooks)**
+
+```csharp
+using AreaProg.AspNetCore.Migrations.Extensions;
+using AreaProg.AspNetCore.Migrations.Models;
+
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    IServiceProvider serviceProvider
+) : SqlServerMigrationEngine(serviceProvider, options.DbContext)
+{
+}
+```
+
+**How it works:**
+- Before running migrations, acquires an exclusive lock named `AppMigrations`
+- If another instance holds the lock, this instance skips migrations
+- Lock is released automatically after migrations complete
+
+**Customization (requires custom engine):**
+
+```csharp
+public class MyMigrationEngine : SqlServerMigrationEngine
+{
+    public MyMigrationEngine(
+        ApplicationMigrationsOptions<MyMigrationEngine> options,
+        IServiceProvider serviceProvider
+    ) : base(serviceProvider, options.DbContext) { }
+
+    // Custom lock name (default: "AppMigrations")
+    protected override string LockResourceName => "MyApp_Migrations";
+
+    // Lock timeout in ms (default: 0 = no wait)
+    // Set to positive value to wait for the lock
+    protected override int LockTimeoutMs => 5000;
+}
+```
+
+### Manual Approach (Other Databases)
+
+For non-SQL Server databases, use configuration to designate a "master" instance:
+
+```json
+// appsettings.json (on master instance only)
+{
+  "Migrations": {
+    "Enabled": true
+  }
+}
+```
+
+```csharp
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    IServiceProvider serviceProvider,
+    IConfiguration configuration
+) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
+{
+    public override Task<bool> ShouldRunAsync()
+        => Task.FromResult(configuration.GetValue("Migrations:Enabled", false));
+}
+```
 
 ## Using Dependency Injection
 
@@ -223,13 +298,18 @@ The `FirstTime` property is `true` when the migration version has never been reg
 Override these methods in your engine for custom behavior:
 
 ```csharp
-public class MyMigrationEngine : BaseMigrationEngine
+public class MyMigrationEngine : EfCoreMigrationEngine
 {
+    public MyMigrationEngine(
+        ApplicationMigrationsOptions<MyMigrationEngine> options,
+        IServiceProvider serviceProvider
+    ) : base(serviceProvider, options.DbContext) { }
+
     // Called before any migrations
     public override Task RunBeforeAsync() { ... }
 
     // Called before EF Core migrations (only if migrations are pending)
-    public override Task RunBeforeDatabaseMigrationAsync(IDictionary<string, object> cache) { ... }
+    public override Task RunBeforeDatabaseMigrationAsync() { ... }
 
     // Called after EF Core migrations
     public override Task RunAfterDatabaseMigrationAsync() { ... }
@@ -242,113 +322,104 @@ public class MyMigrationEngine : BaseMigrationEngine
 ### Execution Order
 
 ```
-1. RunBeforeAsync()
-2. RunBeforeDatabaseMigrationAsync(cache)  [if EF Core migrations pending]
-3. EF Core MigrateAsync()
-4. RunAfterDatabaseMigrationAsync()
-5. Application migrations (UpAsync for each)
-6. RunAfterAsync()
+1. ShouldRunAsync()                              → returns false? skip everything
+2. RunBeforeAsync()                              ← Engine (global)
+3. RunBeforeDatabaseMigrationAsync()             ← Engine (global) [if EF Core migrations pending]
+4. For each pending migration:
+   └─ PrepareMigrationAsync(cache)               ← Migration (per-version, isolated cache)
+5. EF Core MigrateAsync()
+6. RunAfterDatabaseMigrationAsync()              ← Engine (global)
+7. For each pending migration:
+   └─ UpAsync()                                  ← Migration (per-version)
+8. RunAfterAsync()                               ← Engine (global)
 ```
 
 ## Advanced: Data Transformation During Schema Changes
 
-When changing column types (e.g., `int` enum to `string`), you need to capture data before the schema change. Use the `Cache`:
+When changing column types (e.g., `int` enum to `string`), you need to capture data before the schema change. Use `PrepareMigrationAsync` and the `Cache`:
 
 ```csharp
-// In your engine
-public override async Task RunBeforeDatabaseMigrationAsync(IDictionary<string, object> cache)
+public class Migration_1_2_0 : BaseMigration
 {
-    // Capture data BEFORE schema change
-    var statuses = await _db.Database
-        .SqlQueryRaw<OldStatus>("SELECT Id, Status FROM Orders")
-        .ToListAsync();
+    private readonly MyDbContext _db;
 
-    cache["OrderStatuses"] = statuses;
-}
+    public Migration_1_2_0(MyDbContext db) => _db = db;
 
-// In your migration
-public override async Task UpAsync()
-{
-    if (Cache.TryGetValue("OrderStatuses", out var data))
+    public override Version Version => new(1, 2, 0);
+
+    // Called BEFORE EF Core migrations - schema hasn't changed yet
+    public override async Task PrepareMigrationAsync(IDictionary<string, object> cache)
     {
-        var oldStatuses = (List<OldStatus>)data;
+        var statuses = await _db.Database
+            .SqlQueryRaw<OldStatus>("SELECT Id, Status FROM Orders")
+            .ToListAsync();
 
-        foreach (var item in oldStatuses)
+        cache["OrderStatuses"] = statuses;
+    }
+
+    // Called AFTER EF Core migrations - schema has changed
+    public override async Task UpAsync()
+    {
+        if (Cache.TryGetValue("OrderStatuses", out var data))
         {
-            var newValue = item.Status switch
-            {
-                0 => "pending",
-                1 => "confirmed",
-                2 => "shipped",
-                _ => "unknown"
-            };
+            var oldStatuses = (List<OldStatus>)data;
 
-            await _db.Database.ExecuteSqlAsync(
-                $"UPDATE Orders SET Status = {newValue} WHERE Id = {item.Id}");
+            foreach (var item in oldStatuses)
+            {
+                var newValue = item.Status switch
+                {
+                    0 => "pending",
+                    1 => "confirmed",
+                    2 => "shipped",
+                    _ => "unknown"
+                };
+
+                await _db.Database.ExecuteSqlAsync(
+                    $"UPDATE Orders SET Status = {newValue} WHERE Id = {item.Id}");
+            }
         }
     }
 }
 ```
 
-## Conditional Execution
+This keeps the data capture logic with the migration that needs it, rather than in a global engine hook.
 
-Use `ShouldRun` to skip migrations based on runtime conditions.
+## Advanced: Custom Version Storage
 
-### Skip in Test Environment
+If you need custom storage (file, Redis, raw SQL, etc.), inherit from `BaseMigrationEngine` directly:
 
 ```csharp
 public class MyMigrationEngine : BaseMigrationEngine
 {
-    private readonly IHostEnvironment _env;
+    private readonly MyDbContext _db;
 
-    public MyMigrationEngine(IHostEnvironment env)
+    public MyMigrationEngine(MyDbContext db)
     {
-        _env = env;
+        _db = db;
     }
 
-    public override bool ShouldRun => !_env.IsEnvironment("Test");
-}
-```
-
-### Multi-Server Deployments
-
-When deploying to multiple servers (load-balanced, Kubernetes replicas, etc.), only **one instance** should run migrations to avoid conflicts. Designate a "master" server via configuration:
-
-```json
-// appsettings.json (on the master server only)
-{
-  "Migrations": {
-    "IsMaster": true
-  }
-}
-```
-
-```csharp
-public class MigrationSettings
-{
-    public bool IsMaster { get; set; }
-}
-
-public class MyMigrationEngine : BaseMigrationEngine
-{
-    private readonly MigrationSettings _settings;
-
-    public MyMigrationEngine(IOptions<MigrationSettings> settings)
+    public override async Task<Version[]> GetAppliedVersionsAsync()
     {
-        _settings = settings.Value;
+        // Custom implementation
+        return await _db.AppliedMigrations
+            .Select(m => new Version(m.Version))
+            .ToArrayAsync();
     }
 
-    public override bool ShouldRun => _settings.IsMaster;
+    public override async Task RegisterVersionAsync(Version version)
+    {
+        // Custom implementation
+        _db.AppliedMigrations.Add(new AppliedMigration { Version = version.ToString() });
+        await _db.SaveChangesAsync();
+    }
+
+    public override Task<bool> ShouldRunAsync()
+    {
+        // Custom condition
+        return Task.FromResult(true);
+    }
 }
 ```
-
-```csharp
-// Program.cs
-builder.Services.Configure<MigrationSettings>(
-    builder.Configuration.GetSection("Migrations"));
-```
-
-This ensures migrations run only on the designated master instance, while other instances skip them and start normally.
 
 ## Async Support
 
@@ -385,6 +456,22 @@ See the [Demo README](AreaProg.AspNetCore.Migrations.Demo/README.md) for details
 - .NET 8.0
 - .NET 9.0
 - .NET 10.0
+
+## Migration Engine Hierarchy
+
+```
+BaseMigrationEngine (abstract)
+├── ShouldRunAsync()           → override for custom conditions
+├── GetAppliedVersionsAsync()  → abstract, must implement
+├── RegisterVersionAsync()     → abstract, must implement
+│
+└── EfCoreMigrationEngine (abstract)
+    ├── Auto-implements GetAppliedVersionsAsync() and RegisterVersionAsync()
+    ├── Uses AppliedMigration entity
+    │
+    └── SqlServerMigrationEngine (abstract)
+        └── Adds sp_getapplock distributed locking
+```
 
 ## FAQ
 
@@ -450,9 +537,9 @@ Your engine can store versions anywhere: a file, Redis, a custom table via raw S
 
 ### What happens if two servers start simultaneously?
 
-Without the `IsMaster` pattern, both servers will attempt to run migrations. The database transaction provides some protection - if both try to register the same version, one will fail due to the ongoing transaction.
+With `SqlServerMigrationEngine`, the `sp_getapplock` mechanism ensures only one instance acquires the lock. Other instances will skip migrations (with default timeout of 0) or wait (if you set a positive `LockTimeoutMs`).
 
-However, this is not guaranteed to be safe in all scenarios. For production multi-server deployments, **always use the `IsMaster` pattern** (see [Multi-Server Deployments](#multi-server-deployments)) to ensure only one instance runs migrations.
+For other databases, use the configuration-based approach to designate a single instance to run migrations.
 
 ## License
 

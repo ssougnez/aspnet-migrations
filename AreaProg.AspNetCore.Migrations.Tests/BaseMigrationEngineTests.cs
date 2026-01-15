@@ -7,33 +7,42 @@ using Xunit;
 public class BaseMigrationEngineTests
 {
     [Fact]
-    public void ShouldRun_ShouldDefaultToTrue()
+    public async Task ShouldRunAsync_ShouldDefaultToTrue()
     {
         // Arrange
         var engine = new TestMigrationEngine();
 
-        // Act & Assert
-        engine.ShouldRun.Should().BeTrue();
+        // Act
+        var result = await engine.ShouldRunAsync();
+
+        // Assert
+        result.Should().BeTrue();
     }
 
     [Fact]
-    public void ShouldRun_WhenConfiguredFalse_ShouldReturnFalse()
+    public async Task ShouldRunAsync_WhenConfiguredFalse_ShouldReturnFalse()
     {
         // Arrange
         var engine = new TestMigrationEngine(shouldRun: false);
 
-        // Act & Assert
-        engine.ShouldRun.Should().BeFalse();
+        // Act
+        var result = await engine.ShouldRunAsync();
+
+        // Assert
+        result.Should().BeFalse();
     }
 
     [Fact]
-    public void DisabledMigrationEngine_ShouldRun_ShouldReturnFalse()
+    public async Task DisabledMigrationEngine_ShouldRunAsync_ShouldReturnFalse()
     {
         // Arrange
         var engine = new DisabledMigrationEngine();
 
-        // Act & Assert
-        engine.ShouldRun.Should().BeFalse();
+        // Act
+        var result = await engine.ShouldRunAsync();
+
+        // Assert
+        result.Should().BeFalse();
     }
 
     [Fact]
@@ -188,45 +197,37 @@ public class BaseMigrationEngineTests
     }
 
     [Fact]
-    public async Task RunBeforeDatabaseMigrationAsync_ShouldReceiveCache()
+    public async Task RunBeforeDatabaseMigrationAsync_ShouldBeCallable()
     {
         // Arrange
         var engine = new TestMigrationEngine();
-        var cache = new Dictionary<string, object>
-        {
-            ["key1"] = "value1"
-        };
 
         // Act
-        await engine.RunBeforeDatabaseMigrationAsync(cache);
+        await engine.RunBeforeDatabaseMigrationAsync();
 
         // Assert
         engine.RunBeforeDatabaseMigrationAsyncCalled.Should().BeTrue();
-        engine.CachePassedToRunBeforeDatabaseMigration.Should().BeSameAs(cache);
     }
 
     [Fact]
-    public async Task RunBeforeDatabaseMigrationAsync_WithCallback_ShouldPassCache()
+    public async Task RunBeforeDatabaseMigrationAsync_WithCallback_ShouldExecuteCallback()
     {
         // Arrange
-        IDictionary<string, object>? receivedCache = null;
+        var callbackExecuted = false;
         var engine = new TestMigrationEngine
         {
-            OnRunBeforeDatabaseMigrationAsync = cache =>
+            OnRunBeforeDatabaseMigrationAsync = () =>
             {
-                receivedCache = cache;
-                cache["addedByCallback"] = "test";
+                callbackExecuted = true;
                 return Task.CompletedTask;
             }
         };
-        var inputCache = new Dictionary<string, object>();
 
         // Act
-        await engine.RunBeforeDatabaseMigrationAsync(inputCache);
+        await engine.RunBeforeDatabaseMigrationAsync();
 
         // Assert
-        receivedCache.Should().BeSameAs(inputCache);
-        inputCache.Should().ContainKey("addedByCallback");
+        callbackExecuted.Should().BeTrue();
     }
 
     [Fact]
@@ -301,7 +302,7 @@ public class BaseMigrationEngineTests
                 callOrder.Add("RunBefore");
                 return Task.CompletedTask;
             },
-            OnRunBeforeDatabaseMigrationAsync = _ =>
+            OnRunBeforeDatabaseMigrationAsync = () =>
             {
                 callOrder.Add("RunBeforeDatabaseMigration");
                 return Task.CompletedTask;
@@ -320,7 +321,7 @@ public class BaseMigrationEngineTests
 
         // Act - simulate the expected hook order
         await engine.RunBeforeAsync();
-        await engine.RunBeforeDatabaseMigrationAsync(new Dictionary<string, object>());
+        await engine.RunBeforeDatabaseMigrationAsync();
         await engine.RunAfterDatabaseMigrationAsync();
         await engine.RunAfterAsync();
 

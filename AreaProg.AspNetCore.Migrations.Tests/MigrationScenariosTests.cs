@@ -65,32 +65,31 @@ public class MigrationScenariosTests
     }
 
     [Fact]
-    public async Task CacheSharing_BetweenMigrations_ShouldWork()
+    public async Task CacheIsolation_BetweenMigrations_ShouldWork()
     {
-        // Arrange
-        var sharedCache = new Dictionary<string, object>
-        {
-            ["sharedKey"] = "sharedValue"
-        };
+        // Arrange - each migration gets its own isolated cache
+        var cache1 = new Dictionary<string, object> { ["key"] = "value1" };
+        var cache2 = new Dictionary<string, object> { ["key"] = "value2" };
 
         var migration1 = new TestMigration(new Version(1, 0, 0));
         var migration2 = new TestMigration(new Version(2, 0, 0));
 
         // Use reflection to set Cache (internal setter)
         typeof(BaseMigration).GetProperty(nameof(BaseMigration.Cache))!
-            .SetValue(migration1, sharedCache);
+            .SetValue(migration1, cache1);
         typeof(BaseMigration).GetProperty(nameof(BaseMigration.Cache))!
-            .SetValue(migration2, sharedCache);
+            .SetValue(migration2, cache2);
 
         // Act
         await migration1.UpAsync();
-        migration1.Cache["addedByMigration1"] = "value1";
+        migration1.Cache["addedByMigration1"] = "extra1";
         await migration2.UpAsync();
 
-        // Assert - both migrations should see the shared data
-        migration1.CacheWhenExecuted!["sharedKey"].Should().Be("sharedValue");
-        migration2.CacheWhenExecuted!["sharedKey"].Should().Be("sharedValue");
-        migration2.CacheWhenExecuted!["addedByMigration1"].Should().Be("value1");
+        // Assert - each migration has its own isolated cache
+        migration1.CacheWhenExecuted!["key"].Should().Be("value1");
+        migration2.CacheWhenExecuted!["key"].Should().Be("value2");
+        migration1.Cache.Should().ContainKey("addedByMigration1");
+        migration2.Cache.Should().NotContainKey("addedByMigration1");
     }
 
     [Fact]
@@ -281,11 +280,10 @@ public class HookExecutionTests
     {
         // Arrange
         var engine = new TestMigrationEngine();
-        var cache = new Dictionary<string, object>();
 
         // Act
         await engine.RunBeforeAsync();
-        await engine.RunBeforeDatabaseMigrationAsync(cache);
+        await engine.RunBeforeDatabaseMigrationAsync();
         await engine.RunAfterDatabaseMigrationAsync();
         await engine.RunAfterAsync();
 
@@ -297,24 +295,23 @@ public class HookExecutionTests
     }
 
     [Fact]
-    public async Task CacheModification_InHook_ShouldPersist()
+    public async Task CacheModification_InPrepareMigrationAsync_ShouldPersist()
     {
         // Arrange
-        var engine = new TestMigrationEngine
-        {
-            OnRunBeforeDatabaseMigrationAsync = cache =>
-            {
-                cache["captured"] = "data";
-                return Task.CompletedTask;
-            }
-        };
-        var sharedCache = new Dictionary<string, object>();
+        var migration = new TestMigration(new Version(1, 0, 0));
+        var cache = new Dictionary<string, object>();
 
-        // Act
-        await engine.RunBeforeDatabaseMigrationAsync(sharedCache);
+        // Use reflection to set Cache (internal setter)
+        typeof(BaseMigration).GetProperty(nameof(BaseMigration.Cache))!
+            .SetValue(migration, cache);
+
+        // Act - PrepareMigrationAsync should populate the cache
+        await migration.PrepareMigrationAsync(cache);
+        cache["captured"] = "data";
+        await migration.UpAsync();
 
         // Assert
-        sharedCache.Should().ContainKey("captured");
-        sharedCache["captured"].Should().Be("data");
+        migration.CacheWhenExecuted.Should().ContainKey("captured");
+        migration.CacheWhenExecuted!["captured"].Should().Be("data");
     }
 }

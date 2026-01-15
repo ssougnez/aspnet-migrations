@@ -36,7 +36,7 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
                     b.ToTable("Categories");
                 });
 
-            modelBuilder.Entity("AreaProg.AspNetCore.Migrations.Demo.Data.Entities.MigrationHistory", b =>
+            modelBuilder.Entity("AreaProg.AspNetCore.Migrations.Models.AppliedMigration", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -55,7 +55,7 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
                     b.HasIndex("Version")
                         .IsUnique();
 
-                    b.ToTable("MigrationHistory");
+                    b.ToTable("AppliedMigrations");
                 });
 
             modelBuilder.Entity("AreaProg.AspNetCore.Migrations.Demo.Data.Entities.Product", b =>

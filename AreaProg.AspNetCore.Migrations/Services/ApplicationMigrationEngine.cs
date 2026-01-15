@@ -25,15 +25,22 @@ using System.Threading.Tasks;
 /// containing type <typeparamref name="T"/> and executes them in version order.
 /// </para>
 /// <para>
-/// When a <see cref="DbContext"/> is configured via <see cref="ApplicationMigrationsOptions{T}"/>,
+/// When a <see cref="DbContext"/> is configured via <see cref="ApplicationMigrationsOptions"/>,
 /// each migration is wrapped in a database transaction for atomicity.
 /// </para>
 /// </remarks>
-public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T : BaseMigrationEngine
+/// <remarks>
+/// Initializes a new instance of the <see cref="ApplicationMigrationEngine{T}"/> class.
+/// </remarks>
+/// <param name="serviceProvider">The service provider used to resolve dependencies for migrations.</param>
+/// <param name="options">The migration options containing configuration such as the DbContext type.</param>
+/// <param name="logger">The logger for recording migration progress and errors.</param>
+public class ApplicationMigrationEngine<T>(
+    IServiceProvider serviceProvider,
+    ApplicationMigrationsOptions options,
+    ILogger<IApplicationMigrationEngine> logger
+) : IApplicationMigrationEngine where T : BaseMigrationEngine
 {
-    private readonly ApplicationMigrationsOptions<T> _options;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<IApplicationMigrationEngine> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     private BaseMigration[] _applicationMigrations = Array.Empty<BaseMigration>();
@@ -41,19 +48,6 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
 
     /// <inheritdoc />
     public bool HasRun => _hasRun;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ApplicationMigrationEngine{T}"/> class.
-    /// </summary>
-    /// <param name="serviceProvider">The service provider used to resolve dependencies for migrations.</param>
-    /// <param name="options">The migration options containing configuration such as the DbContext type.</param>
-    /// <param name="logger">The logger for recording migration progress and errors.</param>
-    public ApplicationMigrationEngine(IServiceProvider serviceProvider, ApplicationMigrationsOptions<T> options, ILogger<IApplicationMigrationEngine> logger)
-    {
-        _options = options;
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
 
     /// <inheritdoc />
     public void Run() => RunAsync().GetAwaiter().GetResult();
@@ -75,17 +69,17 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
                 return;
             }
 
-            using var scope = _serviceProvider.CreateScope();
+            using var scope = serviceProvider.CreateScope();
 
-            if (ActivatorUtilities.CreateInstance(scope.ServiceProvider, _options.GetType().GetGenericArguments()[0].UnderlyingSystemType) is not BaseMigrationEngine engine)
+            if (ActivatorUtilities.CreateInstance(scope.ServiceProvider, options.MigrationEngine) is not BaseMigrationEngine engine)
             {
-                _logger.LogError("No migration engine defined");
+                logger.LogError("No migration engine defined");
 
-                throw new InvalidOperationException($"The type '{_options.GetType().GetGenericArguments()[0].Name}' must inherit from BaseMigrationEngine.");
+                throw new InvalidOperationException($"The type '{options.MigrationEngine.Name}' must inherit from BaseMigrationEngine.");
             }
             else
             {
-                if (engine.ShouldRun)
+                if (await engine.ShouldRunAsync())
                 {
                     PopulateApplicationMigrations(scope, engine);
 
@@ -97,7 +91,7 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
                 }
                 else
                 {
-                    _logger.LogDebug("Application migrations are configured not to run");
+                    logger.LogDebug("Application migrations are configured not to run");
                 }
 
                 _hasRun = true;
@@ -120,26 +114,47 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
         var applied = (await engine.GetAppliedVersionsAsync()).OrderBy(v => v);
         var target = _applicationMigrations.LastOrDefault()?.Version ?? new Version(0, 0, 0);
         var current = applied.LastOrDefault() ?? new Version(0, 0, 0);
-        var cache = new Dictionary<string, object>();
 
         if (current <= target)
         {
-            var dbContext = _options.DbContext != null ? scope.ServiceProvider.GetService(_options.DbContext) as DbContext : null;
+            var dbContext = options.DbContext != null ? scope.ServiceProvider.GetService(options.DbContext) as DbContext : null;
+
+            // Determine which application migrations will run
+            var pendingAppMigrations = _applicationMigrations
+                .Where(m => m.Version >= current && m.Version <= target)
+                .OrderBy(m => m.Version)
+                .ToList();
+
+            // Set FirstTime and create isolated Cache for each migration
+            foreach (var migration in pendingAppMigrations)
+            {
+                migration.FirstTime = !applied.Any(v => v == migration.Version);
+                migration.Cache = new Dictionary<string, object>();
+            }
 
             if (dbContext != null)
             {
-                var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+                var pendingEfMigrations = await dbContext.Database.GetPendingMigrationsAsync();
 
-                if (pendingMigrations.Any())
+                if (pendingEfMigrations.Any())
                 {
-                    _logger.LogDebug("Found {Count} pending EF Core migrations, executing pre-migration hook", pendingMigrations.Count());
+                    logger.LogDebug("Found {Count} pending EF Core migrations, executing pre-migration hooks", pendingEfMigrations.Count());
 
-                    await engine.RunBeforeDatabaseMigrationAsync(cache);
+                    // Global engine hook
+                    await engine.RunBeforeDatabaseMigrationAsync();
+
+                    // Per-migration hooks
+                    foreach (var migration in pendingAppMigrations)
+                    {
+                        logger.LogDebug("Calling PrepareMigrationAsync for version {Version}", migration.Version);
+
+                        await migration.PrepareMigrationAsync(migration.Cache);
+                    }
                 }
 
                 var strategy = dbContext.Database.CreateExecutionStrategy();
 
-                _logger.LogInformation("Applying Entity Framework Core migrations...");
+                logger.LogInformation("Applying Entity Framework Core migrations...");
 
                 await strategy.ExecuteAsync(async () =>
                 {
@@ -148,21 +163,14 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
                     await dbContext.Database.MigrateAsync();
                 });
 
-                _logger.LogInformation("Entity Framework Core migrations applied");
+                logger.LogInformation("Entity Framework Core migrations applied");
 
                 await engine.RunAfterDatabaseMigrationAsync();
             }
 
-            var migrations = _applicationMigrations
-                .Where(m => m.Version >= current && m.Version <= target)
-                .OrderBy(m => m.Version);
-
-            foreach (var migration in migrations)
+            foreach (var migration in pendingAppMigrations)
             {
-                _logger.LogInformation("Applying version {Version}", migration.Version);
-
-                migration.FirstTime = !applied.Any(v => v == migration.Version);
-                migration.Cache = cache;
+                logger.LogInformation("Applying version {Version}", migration.Version);
 
                 if (dbContext != null)
                 {
@@ -177,15 +185,15 @@ public class ApplicationMigrationEngine<T> : IApplicationMigrationEngine where T
                     await migration.UpAsync();
                 }
 
-                _logger.LogInformation("Version {Version} applied", migration.Version);
+                logger.LogInformation("Version {Version} applied", migration.Version);
 
                 if (migration.Version != current)
                 {
-                    _logger.LogInformation("Registering version {Version}...", migration.Version);
+                    logger.LogInformation("Registering version {Version}...", migration.Version);
 
                     await engine.RegisterVersionAsync(migration.Version);
 
-                    _logger.LogInformation("Version {Version} registered", migration.Version);
+                    logger.LogInformation("Version {Version} registered", migration.Version);
                 }
             }
         }

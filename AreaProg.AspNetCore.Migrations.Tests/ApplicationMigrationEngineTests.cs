@@ -46,7 +46,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public void HasRun_Initially_ShouldBeFalse()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -59,7 +59,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ShouldSetHasRunToTrue()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -75,7 +75,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public void Run_ShouldSetHasRunToTrue()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -91,7 +91,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_CalledTwice_ShouldOnlyExecuteOnce()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -108,7 +108,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_WithShouldRunFalse_ShouldNotRunMigrations()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<DisabledMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(DisabledMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<DisabledMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -124,7 +124,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ShouldCallRunBeforeAsync()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -140,7 +140,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ShouldCallRunAfterAsync()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -156,7 +156,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ConcurrentCalls_ShouldBeThreadSafe()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -174,7 +174,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public void Dispose_ShouldNotThrow()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -188,7 +188,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public void Dispose_CalledMultipleTimes_ShouldNotThrow()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -206,7 +206,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_DiscoversMigrationsFromEngineAssembly()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -224,8 +224,9 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_WithDbContextNull_ShouldRunWithoutTransactions()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>
+        var options = new ApplicationMigrationsOptions
         {
+            MigrationEngine = typeof(TestMigrationEngine),
             DbContext = null
         };
         var serviceProvider = BuildServiceProvider();
@@ -243,7 +244,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ShouldExecuteHooksInCorrectOrder()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -260,7 +261,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_ShouldExecuteMigrationsInVersionOrder()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -278,7 +279,7 @@ public class ApplicationMigrationEngineTests : IDisposable
     public async Task RunAsync_FirstTimeMigrations_ShouldHaveFirstTimeFlagTrue()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -324,7 +325,7 @@ public class ApplicationMigrationEngineVersionTrackingTests : IDisposable
     public async Task RunAsync_WithNoAppliedVersions_ShouldExecuteMigrations()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = _services.BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);
@@ -341,7 +342,7 @@ public class ApplicationMigrationEngineVersionTrackingTests : IDisposable
     public async Task RunAsync_ShouldRegisterVersions()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions { MigrationEngine = typeof(TestMigrationEngine) };
         var serviceProvider = _services.BuildServiceProvider();
         using var engine = new ApplicationMigrationEngine<TestMigrationEngine>(
             serviceProvider, options, _loggerMock.Object);

@@ -1,7 +1,6 @@
 namespace AreaProg.AspNetCore.Migrations.Models;
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
@@ -22,13 +21,23 @@ using System.Threading.Tasks;
 public abstract class BaseMigrationEngine
 {
     /// <summary>
-    /// Gets a value indicating whether migrations should be executed.
+    /// Determines whether migrations should be executed.
     /// </summary>
     /// <remarks>
-    /// Override this property to conditionally skip migrations based on environment, configuration, or other criteria.
+    /// <para>
+    /// Override this method to conditionally skip migrations based on environment, configuration,
+    /// or to implement distributed locking (e.g., using <c>sp_getapplock</c> for SQL Server).
+    /// </para>
+    /// <para>
+    /// This method is asynchronous to support scenarios like acquiring a database lock
+    /// before running migrations in multi-instance deployments.
+    /// </para>
     /// </remarks>
-    /// <value><c>true</c> to execute migrations; <c>false</c> to skip. Default is <c>true</c>.</value>
-    public virtual bool ShouldRun => true;
+    /// <returns>
+    /// A task that resolves to <c>true</c> to execute migrations; <c>false</c> to skip.
+    /// Default implementation returns <c>true</c>.
+    /// </returns>
+    public virtual Task<bool> ShouldRunAsync() => Task.FromResult(true);
 
     /// <summary>
     /// Returns all application versions that have been previously applied.
@@ -66,21 +75,19 @@ public abstract class BaseMigrationEngine
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Override this method to capture data that will be transformed by schema migrations.
-    /// This is useful when changing column types (e.g., enum to string) where you need to
-    /// preserve and transform existing data.
+    /// Override this method to perform global setup before EF Core migrations run,
+    /// such as logging or validation.
     /// </para>
     /// <para>
     /// This hook is only called when there are pending EF Core migrations.
     /// </para>
     /// <para>
-    /// Data stored in the <paramref name="cache"/> dictionary will be available in
-    /// <see cref="BaseMigration.Cache"/> during application migrations.
+    /// For capturing data before schema changes, use <see cref="BaseMigration.PrepareMigrationAsync"/>
+    /// in individual migrations instead.
     /// </para>
     /// </remarks>
-    /// <param name="cache">A dictionary to store data that will be passed to application migrations.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public virtual Task RunBeforeDatabaseMigrationAsync(IDictionary<string, object> cache) => Task.CompletedTask;
+    public virtual Task RunBeforeDatabaseMigrationAsync() => Task.CompletedTask;
 
     /// <summary>
     /// Called immediately after Entity Framework Core database migrations have been applied.

@@ -116,7 +116,7 @@ app.MapPost("/products", async (AppDbContext db, ProductCreateRequest request) =
 // GET /migrations - Show migration history
 app.MapGet("/migrations", async (AppDbContext db) =>
 {
-    var migrations = await db.MigrationHistory
+    var migrations = await db.AppliedMigrations
         .OrderByDescending(m => m.AppliedAt)
         .Select(m => new
         {

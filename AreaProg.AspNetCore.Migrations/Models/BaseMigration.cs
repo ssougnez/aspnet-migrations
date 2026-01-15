@@ -60,7 +60,7 @@ public abstract class BaseMigration
     public bool FirstTime { get; internal set; }
 
     /// <summary>
-    /// Gets a cache dictionary populated by <see cref="BaseMigrationEngine.RunBeforeDatabaseMigrationAsync"/>.
+    /// Gets a cache dictionary for passing data between <see cref="PrepareMigrationAsync"/> and <see cref="UpAsync"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -68,10 +68,50 @@ public abstract class BaseMigration
     /// Use it to access preserved data that was transformed by schema changes.
     /// </para>
     /// <para>
-    /// The cache is shared across all migrations in the same run.
+    /// Each migration has its own isolated cache instance.
     /// </para>
     /// </remarks>
     public IDictionary<string, object> Cache { get; internal set; } = new Dictionary<string, object>();
+
+    /// <summary>
+    /// Called before EF Core database migrations to capture data that will be transformed by schema changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override this method to capture data that needs to be preserved and transformed after a schema change.
+    /// This is useful when changing column types (e.g., enum to string) where you need to read old values
+    /// before the schema changes and write transformed values afterward.
+    /// </para>
+    /// <para>
+    /// This method is only called when there are pending EF Core migrations.
+    /// </para>
+    /// <para>
+    /// Example:
+    /// </para>
+    /// <code>
+    /// public override async Task PrepareMigrationAsync(IDictionary&lt;string, object&gt; cache)
+    /// {
+    ///     // Capture data before schema change
+    ///     var oldStatuses = await _db.Database
+    ///         .SqlQueryRaw&lt;OldStatus&gt;("SELECT Id, Status FROM Orders")
+    ///         .ToListAsync();
+    ///     cache["OrderStatuses"] = oldStatuses;
+    /// }
+    ///
+    /// public override async Task UpAsync()
+    /// {
+    ///     if (Cache.TryGetValue("OrderStatuses", out var data))
+    ///     {
+    ///         // Transform data after schema change
+    ///     }
+    /// }
+    /// </code>
+    /// </remarks>
+    /// <param name="cache">
+    /// A dictionary to store data that will be available in <see cref="Cache"/> during <see cref="UpAsync"/>.
+    /// </param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public virtual Task PrepareMigrationAsync(IDictionary<string, object> cache) => Task.CompletedTask;
 
     /// <summary>
     /// Method called to apply the migration.

@@ -6,6 +6,7 @@ using AreaProg.AspNetCore.Migrations.Services;
 using AreaProg.AspNetCore.Migrations.Tests.Fixtures;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 using Xunit;
 
 public class ServiceCollectionExtensionsTests
@@ -32,7 +33,7 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddApplicationMigrations<TestMigrationEngine>();
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetService<ApplicationMigrationsOptions<TestMigrationEngine>>();
+        var options = serviceProvider.GetService<ApplicationMigrationsOptions>();
 
         // Assert
         options.Should().NotBeNull();
@@ -47,8 +48,8 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddApplicationMigrations<TestMigrationEngine>();
         var serviceProvider = services.BuildServiceProvider();
-        var options1 = serviceProvider.GetService<ApplicationMigrationsOptions<TestMigrationEngine>>();
-        var options2 = serviceProvider.GetService<ApplicationMigrationsOptions<TestMigrationEngine>>();
+        var options1 = serviceProvider.GetService<ApplicationMigrationsOptions>();
+        var options2 = serviceProvider.GetService<ApplicationMigrationsOptions>();
 
         // Assert
         options1.Should().BeSameAs(options2);
@@ -117,7 +118,7 @@ public class ServiceCollectionExtensionsTests
             options.DbContext = typeof(TestDbContext);
         });
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<ApplicationMigrationsOptions<TestMigrationEngine>>();
+        var options = serviceProvider.GetRequiredService<ApplicationMigrationsOptions>();
 
         // Assert
         options.DbContext.Should().Be(typeof(TestDbContext));
@@ -145,7 +146,7 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddApplicationMigrations<TestMigrationEngine>();
         var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<ApplicationMigrationsOptions<TestMigrationEngine>>();
+        var options = serviceProvider.GetRequiredService<ApplicationMigrationsOptions>();
 
         // Assert
         options.DbContext.Should().BeNull();
@@ -172,7 +173,7 @@ public class ServiceCollectionExtensionsTests
         // Assert - the second registration should take effect
         // Note: ServiceCollection does not automatically replace, so both are registered
         // but GetService returns the last registered one
-        var options = serviceProvider.GetServices<ApplicationMigrationsOptions<TestMigrationEngine>>()
+        var options = serviceProvider.GetServices<ApplicationMigrationsOptions>()
             .LastOrDefault();
         options?.DbContext.Should().BeNull();
     }
@@ -193,7 +194,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddApplicationMigrations_WithDifferentEngines_ShouldRegisterBoth()
+    public void AddApplicationMigrations_WithDifferentEngines_ShouldRegisterLastEngine()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -204,12 +205,27 @@ public class ServiceCollectionExtensionsTests
         services.AddApplicationMigrations<DisabledMigrationEngine>();
         var serviceProvider = services.BuildServiceProvider();
 
-        // Assert
-        var testEngineOptions = serviceProvider.GetService<ApplicationMigrationsOptions<TestMigrationEngine>>();
-        var disabledEngineOptions = serviceProvider.GetService<ApplicationMigrationsOptions<DisabledMigrationEngine>>();
+        // Assert - ServiceCollection registers multiple, GetService returns the last one
+        var allOptions = serviceProvider.GetServices<ApplicationMigrationsOptions>().ToList();
+        allOptions.Should().HaveCount(2);
+        allOptions[0].MigrationEngine.Should().Be(typeof(TestMigrationEngine));
+        allOptions[1].MigrationEngine.Should().Be(typeof(DisabledMigrationEngine));
+    }
 
-        testEngineOptions.Should().NotBeNull();
-        disabledEngineOptions.Should().NotBeNull();
+    [Fact]
+    public void AddApplicationMigrations_ShouldSetMigrationEngineProperty()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetService<ApplicationMigrationsOptions>();
+
+        // Assert
+        options.Should().NotBeNull();
+        options!.MigrationEngine.Should().Be(typeof(TestMigrationEngine));
     }
 }
 
@@ -219,7 +235,7 @@ public class ApplicationMigrationsOptionsTests
     public void DbContext_ShouldDefaultToNull()
     {
         // Arrange & Act
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions();
 
         // Assert
         options.DbContext.Should().BeNull();
@@ -229,7 +245,7 @@ public class ApplicationMigrationsOptionsTests
     public void DbContext_ShouldBeSettable()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions();
 
         // Act
         options.DbContext = typeof(TestDbContext);
@@ -242,7 +258,7 @@ public class ApplicationMigrationsOptionsTests
     public void DbContext_ShouldBeSettableToNull()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>
+        var options = new ApplicationMigrationsOptions
         {
             DbContext = typeof(TestDbContext)
         };
@@ -258,12 +274,22 @@ public class ApplicationMigrationsOptionsTests
     public void DbContext_CanBeSetToAnyType()
     {
         // Arrange
-        var options = new ApplicationMigrationsOptions<TestMigrationEngine>();
+        var options = new ApplicationMigrationsOptions();
 
         // Act
         options.DbContext = typeof(string); // Even non-DbContext types are allowed at compile time
 
         // Assert
         options.DbContext.Should().Be(typeof(string));
+    }
+
+    [Fact]
+    public void MigrationEngine_ShouldDefaultToNull()
+    {
+        // Arrange & Act
+        var options = new ApplicationMigrationsOptions();
+
+        // Assert
+        options.MigrationEngine.Should().BeNull();
     }
 }

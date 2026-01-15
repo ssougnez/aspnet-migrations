@@ -35,20 +35,16 @@ AreaProg.AspNetCore.Migrations.Demo/
 
 ### 1. Migration Engine Implementation
 
-The `AppMigrationEngine` class shows how to implement `BaseMigrationEngine`:
+The `AppMigrationEngine` class shows how to use `EfCoreMigrationEngine` for automatic version tracking:
 
 ```csharp
-public class AppMigrationEngine : BaseMigrationEngine
+public class AppMigrationEngine(
+    ApplicationMigrationsOptions<AppMigrationEngine> options,
+    IServiceProvider serviceProvider
+) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
 {
-    public override async Task<Version[]> GetAppliedVersionsAsync()
-    {
-        // Retrieve applied versions from database
-    }
-
-    public override async Task RegisterVersionAsync(Version version)
-    {
-        // Store version in database
-    }
+    // The base class handles GetAppliedVersionsAsync() and RegisterVersionAsync() automatically
+    // Override lifecycle hooks as needed
 }
 ```
 
@@ -84,18 +80,26 @@ if (existing == null)
 
 ### 4. Cache for Schema Changes
 
-The `V1_2_0_AddProductMetrics` migration shows how to use data captured before EF migrations:
+The `V1_2_0_AddProductMetrics` migration shows how to capture data before EF migrations using `PrepareMigrationAsync`:
 
 ```csharp
-// In MigrationEngine.RunBeforeDatabaseMigrationAsync:
-cache["ProductCountBeforeMigration"] = await _dbContext.Products.CountAsync();
-
-// In migration:
-if (Cache.TryGetValue("ProductCountBeforeMigration", out var countObj))
+// In migration - PrepareMigrationAsync runs BEFORE EF Core migrations:
+public override async Task PrepareMigrationAsync(IDictionary<string, object> cache)
 {
-    var productCountBefore = (int)countObj;
+    cache["ProductCountBeforeMigration"] = await _dbContext.Products.CountAsync();
+}
+
+// In migration - UpAsync runs AFTER EF Core migrations:
+public override async Task UpAsync()
+{
+    if (Cache.TryGetValue("ProductCountBeforeMigration", out var countObj))
+    {
+        var productCountBefore = (int)countObj;
+    }
 }
 ```
+
+Each migration has its own isolated cache, preventing key collisions between migrations.
 
 ### 5. Lifecycle Hooks
 

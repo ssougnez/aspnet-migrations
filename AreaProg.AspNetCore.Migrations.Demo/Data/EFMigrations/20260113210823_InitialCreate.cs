@@ -26,7 +26,7 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "MigrationHistory",
+                name: "AppliedMigrations",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
@@ -36,7 +36,7 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MigrationHistory", x => x.Id);
+                    table.PrimaryKey("PK_AppliedMigrations", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -63,8 +63,8 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MigrationHistory_Version",
-                table: "MigrationHistory",
+                name: "IX_AppliedMigrations_Version",
+                table: "AppliedMigrations",
                 column: "Version",
                 unique: true);
 
@@ -78,7 +78,7 @@ namespace AreaProg.AspNetCore.Migrations.Demo.Data.EFMigrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "MigrationHistory");
+                name: "AppliedMigrations");
 
             migrationBuilder.DropTable(
                 name: "Products");

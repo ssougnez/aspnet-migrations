@@ -20,7 +20,6 @@ public class TestMigrationEngine : BaseMigrationEngine
     public static bool StaticRunAfterAsyncCalled { get; private set; }
     public static bool StaticRunBeforeDatabaseMigrationAsyncCalled { get; private set; }
     public static bool StaticRunAfterDatabaseMigrationAsyncCalled { get; private set; }
-    public static IDictionary<string, object>? StaticCachePassedToRunBeforeDatabaseMigration { get; private set; }
     public static List<Version> StaticRegisteredVersions { get; } = new();
     public static int StaticInstanceCount { get; private set; }
     public static List<string> StaticCallOrder { get; } = new();
@@ -30,13 +29,12 @@ public class TestMigrationEngine : BaseMigrationEngine
     public bool RunAfterAsyncCalled { get; private set; }
     public bool RunBeforeDatabaseMigrationAsyncCalled { get; private set; }
     public bool RunAfterDatabaseMigrationAsyncCalled { get; private set; }
-    public IDictionary<string, object>? CachePassedToRunBeforeDatabaseMigration { get; private set; }
     public IReadOnlyList<Version> RegisteredVersions => _registeredVersions;
 
     // Instance callbacks (for direct instantiation tests)
     public Func<Task>? OnRunBeforeAsync { get; set; }
     public Func<Task>? OnRunAfterAsync { get; set; }
-    public Func<IDictionary<string, object>, Task>? OnRunBeforeDatabaseMigrationAsync { get; set; }
+    public Func<Task>? OnRunBeforeDatabaseMigrationAsync { get; set; }
     public Func<Task>? OnRunAfterDatabaseMigrationAsync { get; set; }
 
     public static void Reset()
@@ -45,7 +43,6 @@ public class TestMigrationEngine : BaseMigrationEngine
         StaticRunAfterAsyncCalled = false;
         StaticRunBeforeDatabaseMigrationAsyncCalled = false;
         StaticRunAfterDatabaseMigrationAsyncCalled = false;
-        StaticCachePassedToRunBeforeDatabaseMigration = null;
         StaticRegisteredVersions.Clear();
         StaticInstanceCount = 0;
         StaticCallOrder.Clear();
@@ -67,7 +64,7 @@ public class TestMigrationEngine : BaseMigrationEngine
         _appliedVersions.AddRange(appliedVersions);
     }
 
-    public override bool ShouldRun => _shouldRun;
+    public override Task<bool> ShouldRunAsync() => Task.FromResult(_shouldRun);
 
     public void AddAppliedVersion(Version version)
     {
@@ -111,17 +108,15 @@ public class TestMigrationEngine : BaseMigrationEngine
         }
     }
 
-    public override async Task RunBeforeDatabaseMigrationAsync(IDictionary<string, object> cache)
+    public override async Task RunBeforeDatabaseMigrationAsync()
     {
         RunBeforeDatabaseMigrationAsyncCalled = true;
-        CachePassedToRunBeforeDatabaseMigration = cache;
         StaticRunBeforeDatabaseMigrationAsyncCalled = true;
-        StaticCachePassedToRunBeforeDatabaseMigration = cache;
         StaticCallOrder.Add("RunBeforeDatabaseMigration");
 
         if (OnRunBeforeDatabaseMigrationAsync != null)
         {
-            await OnRunBeforeDatabaseMigrationAsync(cache);
+            await OnRunBeforeDatabaseMigrationAsync();
         }
     }
 
@@ -170,7 +165,7 @@ public class FailingMigrationEngine : BaseMigrationEngine
 /// </summary>
 public class DisabledMigrationEngine : BaseMigrationEngine
 {
-    public override bool ShouldRun => false;
+    public override Task<bool> ShouldRunAsync() => Task.FromResult(false);
 
     public override Task<Version[]> GetAppliedVersionsAsync()
     {

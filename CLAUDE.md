@@ -103,38 +103,48 @@ The `FirstTime` flag is `true` when the migration version has never been registe
 
 ### Pre-Migration Data Capture (Schema Change Workflow)
 
-When changing column types (e.g., enum to string), you may need to capture existing data before the schema change and transform it afterward. The `RunBeforeDatabaseMigrationAsync` hook and `Cache` property enable this:
+When changing column types (e.g., enum to string), you may need to capture existing data before the schema change and transform it afterward. Use `PrepareMigrationAsync` in individual migrations:
 
 ```csharp
-// In your MigrationEngine
-public override async Task RunBeforeDatabaseMigrationAsync(IDictionary<string, object> cache)
+public class Migration_1_2_0 : BaseMigration
 {
-    // Capture data before EF Core changes the schema
-    var oldValues = await _dbContext.Database
-        .SqlQueryRaw<OldStatusRecord>("SELECT Id, Status FROM Orders")
-        .ToListAsync();
+    private readonly MyDbContext _db;
 
-    cache["OrderStatuses"] = oldValues;
-}
+    public Migration_1_2_0(MyDbContext db) => _db = db;
 
-// In your migration
-public override async Task UpAsync()
-{
-    if (Cache.TryGetValue("OrderStatuses", out var data))
+    public override Version Version => new(1, 2, 0);
+
+    // Called BEFORE EF Core migrations - capture data while old schema exists
+    public override async Task PrepareMigrationAsync(IDictionary<string, object> cache)
     {
-        var oldStatuses = (List<OldStatusRecord>)data;
-        foreach (var record in oldStatuses)
+        var oldValues = await _db.Database
+            .SqlQueryRaw<OldStatusRecord>("SELECT Id, Status FROM Orders")
+            .ToListAsync();
+
+        cache["OrderStatuses"] = oldValues;
+    }
+
+    // Called AFTER EF Core migrations - transform data with new schema
+    public override async Task UpAsync()
+    {
+        if (Cache.TryGetValue("OrderStatuses", out var data))
         {
-            var newStatus = record.Status switch
+            var oldStatuses = (List<OldStatusRecord>)data;
+            foreach (var record in oldStatuses)
             {
-                0 => "pending",
-                1 => "complete",
-                _ => "unknown"
-            };
-            // Transform the data after schema change
+                var newStatus = record.Status switch
+                {
+                    0 => "pending",
+                    1 => "complete",
+                    _ => "unknown"
+                };
+                // Transform the data after schema change
+            }
         }
     }
 }
 ```
 
-**Important:** The `RunBeforeDatabaseMigrationAsync` hook is **only called when there are pending EF Core migrations**, avoiding performance impact on regular application startups.
+**Important:**
+- `PrepareMigrationAsync` is **only called when there are pending EF Core migrations**, avoiding performance impact on regular application startups.
+- Each migration has its own **isolated cache** - no key collisions between migrations.

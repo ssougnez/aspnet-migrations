@@ -1,4 +1,5 @@
 using AreaProg.AspNetCore.Migrations.Demo.Data.Entities;
+using AreaProg.AspNetCore.Migrations.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AreaProg.AspNetCore.Migrations.Demo.Data;
@@ -14,7 +15,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Category> Categories => Set<Category>();
-    public DbSet<MigrationHistory> MigrationHistory => Set<MigrationHistory>();
+    public DbSet<AppliedMigration> AppliedMigrations => Set<AppliedMigration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,8 +38,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
         });
 
-        modelBuilder.Entity<MigrationHistory>(entity =>
+        modelBuilder.Entity<AppliedMigration>(entity =>
         {
+            entity.ToTable("AppliedMigrations");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Version).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.Version).IsUnique();
