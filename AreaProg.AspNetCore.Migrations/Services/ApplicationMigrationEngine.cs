@@ -153,16 +153,9 @@ public class ApplicationMigrationEngine<T>(
                     }
                 }
 
-                var strategy = dbContext.Database.CreateExecutionStrategy();
-
                 logger.LogInformation("Applying Entity Framework Core migrations...");
 
-                await strategy.ExecuteAsync(async () =>
-                {
-                    dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(15));
-
-                    await dbContext.Database.MigrateAsync();
-                });
+                await engine.RunEFCoreMigrationAsync(dbContext);
 
                 logger.LogInformation("Entity Framework Core migrations applied");
 

@@ -324,6 +324,9 @@ public class MyMigrationEngine(
     // Called before EF Core migrations (only if migrations are pending)
     public override Task RunBeforeDatabaseMigrationAsync() { ... }
 
+    // Customize how EF Core migrations are executed
+    public override Task RunEFCoreMigrationAsync(DbContext? dbContext) { ... }
+
     // Called after EF Core migrations
     public override Task RunAfterDatabaseMigrationAsync() { ... }
 
@@ -340,7 +343,7 @@ public class MyMigrationEngine(
 3. RunBeforeDatabaseMigrationAsync()             ← Engine (global) [if EF Core migrations pending]
 4. For each pending migration:
    └─ PrepareMigrationAsync(cache)               ← Migration (per-version, isolated cache)
-5. EF Core MigrateAsync()
+5. RunEFCoreMigrationAsync(dbContext)            ← Engine (customizable EF Core migration execution)
 6. RunAfterDatabaseMigrationAsync()              ← Engine (global)
 7. For each pending migration:
    └─ UpAsync()                                  ← Migration (per-version)
@@ -392,6 +395,59 @@ public class Migration_1_2_0(MyDbContext db) : BaseMigration
 ```
 
 This keeps the data capture logic with the migration that needs it, rather than in a global engine hook.
+
+## Advanced: Customizing EF Core Migration Execution
+
+Override `RunEFCoreMigrationAsync` in your engine to customize how Entity Framework Core migrations are applied:
+
+```csharp
+public class MyMigrationEngine : EfCoreMigrationEngine
+{
+    private readonly ILogger<MyMigrationEngine> _logger;
+
+    public MyMigrationEngine(
+        ApplicationMigrationsOptions options,
+        IServiceProvider serviceProvider,
+        ILogger<MyMigrationEngine> logger)
+        : base(serviceProvider, options.DbContext)
+    {
+        _logger = logger;
+    }
+
+    public override async Task RunEFCoreMigrationAsync(DbContext? dbContext)
+    {
+        if (dbContext is null) return;
+
+        var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+
+        if (!pendingMigrations.Any()) return;
+
+        // Log each migration before applying
+        foreach (var migration in pendingMigrations)
+        {
+            _logger.LogInformation("Pending EF Core migration: {Migration}", migration);
+        }
+
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            // Custom timeout (default is 15 minutes)
+            dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(5));
+
+            await dbContext.Database.MigrateAsync();
+        });
+
+        _logger.LogInformation("Applied {Count} EF Core migrations", pendingMigrations.Count());
+    }
+}
+```
+
+Common customizations include:
+- **Custom command timeout**: Adjust for long-running migrations
+- **Per-migration logging**: Log each migration name before/after application
+- **Custom execution strategies**: Use different retry policies
+- **Progress reporting**: Integrate with monitoring systems
 
 ## Advanced: Custom Version Storage
 
@@ -484,9 +540,10 @@ See the [Demo README](AreaProg.AspNetCore.Migrations.Demo/README.md) for details
 
 ```
 BaseMigrationEngine (abstract)
-├── ShouldRunAsync()           → override for custom conditions
-├── GetAppliedVersionsAsync()  → abstract, must implement
-├── RegisterVersionAsync()     → abstract, must implement
+├── ShouldRunAsync()              → override for custom conditions
+├── GetAppliedVersionsAsync()     → abstract, must implement
+├── RegisterVersionAsync()        → abstract, must implement
+├── RunEFCoreMigrationAsync()     → override to customize EF Core migration execution
 │
 └── EfCoreMigrationEngine (abstract)
     ├── Auto-implements GetAppliedVersionsAsync() and RegisterVersionAsync()

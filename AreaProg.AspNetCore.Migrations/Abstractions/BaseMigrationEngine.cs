@@ -1,7 +1,9 @@
 namespace AreaProg.AspNetCore.Migrations.Abstractions;
 
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -98,4 +100,48 @@ public abstract class BaseMigrationEngine
     /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     public virtual Task RunAfterDatabaseMigrationAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Executes Entity Framework Core database migrations.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override this method to customize how EF Core migrations are applied. Common customizations include:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Custom command timeout values</description></item>
+    /// <item><description>Per-migration logging</description></item>
+    /// <item><description>Custom execution strategies</description></item>
+    /// <item><description>Progress reporting</description></item>
+    /// </list>
+    /// <para>
+    /// The default implementation uses the database's execution strategy, sets a 15-minute command timeout,
+    /// and calls <c>MigrateAsync</c>.
+    /// </para>
+    /// </remarks>
+    /// <param name="dbContext">
+    /// The DbContext to use for migrations. May be null if no DbContext was configured.
+    /// </param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public virtual async Task RunEFCoreMigrationAsync(DbContext? dbContext)
+    {
+        if (dbContext is null)
+        {
+            return;
+        }
+
+        var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+
+        if (pendingMigrations.Any())
+        {
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+
+            await strategy.ExecuteAsync(async () =>
+            {
+                dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(15));
+
+                await dbContext.Database.MigrateAsync();
+            });
+        }
+    }
 }
