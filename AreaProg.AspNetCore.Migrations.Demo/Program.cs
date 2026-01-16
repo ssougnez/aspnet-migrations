@@ -1,16 +1,29 @@
 using AreaProg.AspNetCore.Migrations.Demo.Data;
 using AreaProg.AspNetCore.Migrations.Demo.Data.Entities;
 using AreaProg.AspNetCore.Migrations.Demo.Migrations;
+using AreaProg.AspNetCore.Migrations.Engines;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =============================================================================
-// 1. Configure Entity Framework Core with SQLite
+// 1. Configure Entity Framework Core with SQLite or SQL Server
 // =============================================================================
+var dbProvider = builder.Configuration["Database:Provider"] ?? "SQLite";
+var connectionString = builder.Configuration[$"Database:ConnectionStrings:{dbProvider}"];
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=demo.db"));
+{
+    if (dbProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseSqlServer(connectionString);
+    }
+    else
+    {
+        options.UseSqlite(connectionString ?? "Data Source=demo.db");
+    }
+});
 
 // =============================================================================
 // 2. Register Application Migrations
@@ -18,10 +31,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // AddApplicationMigrations<T> registers the migration engine.
 // The type parameter T is used to discover migrations in the same assembly.
 // The DbContext option enables transactional migrations and EF Core integration.
-builder.Services.AddApplicationMigrations<AppMigrationEngine>(options =>
-{
-    options.DbContext = typeof(AppDbContext);
-});
+builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine, AppDbContext>();
 
 // Add Swagger for API documentation
 builder.Services.AddEndpointsApiExplorer();

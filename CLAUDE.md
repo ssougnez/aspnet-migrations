@@ -27,9 +27,9 @@ The project multi-targets: net6.0, net8.0, net9.0, net10.0.
 
 The library uses an abstract base class pattern for extensibility:
 
-1. **BaseMigration** (`Models/BaseMigration.cs`) - Abstract class that individual migrations inherit from. Requires implementing `Version` property and `UpAsync()` method.
+1. **BaseMigration** (`Abstractions/BaseMigration.cs`) - Abstract class that individual migrations inherit from. Requires implementing `Version` property and `UpAsync()` method.
 
-2. **BaseMigrationEngine** (`Models/BaseMigrationEngine.cs`) - Abstract orchestration layer that tracks applied versions. Subclasses implement version storage (e.g., database, file system).
+2. **BaseMigrationEngine** (`Abstractions/BaseMigrationEngine.cs`) - Abstract orchestration layer that tracks applied versions. Subclasses implement version storage (e.g., database, file system).
 
 3. **ApplicationMigrationEngine<T>** (`Services/ApplicationMigrationEngine.cs`) - Generic concrete implementation that:
    - Discovers `BaseMigration` implementations via reflection from assembly containing type `T`

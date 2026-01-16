@@ -1,5 +1,5 @@
 using AreaProg.AspNetCore.Migrations.Demo.Data;
-using AreaProg.AspNetCore.Migrations.Models;
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -80,9 +80,13 @@ public class V1_2_0_AddProductMetrics : BaseMigration
         try
         {
             using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}'";
+            // Check if we're using SQL Server or SQLite based on provider name
+            var isSqlServer = connection.GetType().Name.Contains("SqlConnection");
+            command.CommandText = isSqlServer
+                ? $"SELECT OBJECT_ID('{tableName}', 'U')"
+                : $"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}'";
             var result = await command.ExecuteScalarAsync();
-            return result != null;
+            return result != null && result != DBNull.Value;
         }
         finally
         {

@@ -1,6 +1,6 @@
 namespace AreaProg.AspNetCore.Migrations.Tests.Fixtures;
 
-using AreaProg.AspNetCore.Migrations.Models;
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

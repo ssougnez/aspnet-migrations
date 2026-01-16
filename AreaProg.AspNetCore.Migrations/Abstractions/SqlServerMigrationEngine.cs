@@ -1,4 +1,4 @@
-namespace AreaProg.AspNetCore.Migrations.Models;
+namespace AreaProg.AspNetCore.Migrations.Abstractions;
 
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -30,7 +30,12 @@ using System.Threading.Tasks;
 /// }
 /// </code>
 /// </remarks>
-public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
+/// <param name="serviceProvider">The service provider to resolve the DbContext from.</param>
+/// <param name="dbContextType">
+/// The type of DbContext to use, typically from <c>ApplicationMigrationsOptions.DbContext</c>.
+/// </param>
+public abstract class SqlServerMigrationEngine(IServiceProvider serviceProvider, Type? dbContextType)
+    : EfCoreMigrationEngine(serviceProvider, dbContextType)
 {
     /// <summary>
     /// Gets the name of the application lock resource.
@@ -56,18 +61,6 @@ public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
     protected virtual int LockTimeoutMs => 0;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SqlServerMigrationEngine"/> class.
-    /// </summary>
-    /// <param name="serviceProvider">The service provider to resolve the DbContext from.</param>
-    /// <param name="dbContextType">
-    /// The type of DbContext to use, typically from <c>ApplicationMigrationsOptions.DbContext</c>.
-    /// </param>
-    protected SqlServerMigrationEngine(IServiceProvider serviceProvider, Type? dbContextType)
-        : base(serviceProvider, dbContextType)
-    {
-    }
-
-    /// <summary>
     /// Determines whether migrations should run by attempting to acquire a distributed lock.
     /// </summary>
     /// <remarks>
@@ -85,19 +78,20 @@ public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
     /// </returns>
     public override async Task<bool> ShouldRunAsync()
     {
-        if (DbContext == null)
+        if (DbContext is null)
         {
             return true;
         }
 
         var connection = DbContext.Database.GetDbConnection();
 
-        if (connection.State != ConnectionState.Open)
+        if (connection.State is not ConnectionState.Open)
         {
             await connection.OpenAsync();
         }
 
         using var command = connection.CreateCommand();
+
         command.CommandText = @"
             DECLARE @result int;
             EXEC @result = sp_getapplock
@@ -108,15 +102,19 @@ public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
             SELECT @result;";
 
         var resourceParam = command.CreateParameter();
+
         resourceParam.ParameterName = "@resourceName";
         resourceParam.Value = LockResourceName;
         resourceParam.DbType = DbType.String;
+
         command.Parameters.Add(resourceParam);
 
         var timeoutParam = command.CreateParameter();
+
         timeoutParam.ParameterName = "@timeout";
         timeoutParam.Value = LockTimeoutMs;
         timeoutParam.DbType = DbType.Int32;
+
         command.Parameters.Add(timeoutParam);
 
         var result = await command.ExecuteScalarAsync();
@@ -128,7 +126,7 @@ public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
         // -2: Lock request was cancelled
         // -3: Deadlock victim
         // -999: Parameter validation error
-        return result != null && Convert.ToInt32(result) >= 0;
+        return result is not null && Convert.ToInt32(result) >= 0;
     }
 
     /// <summary>
@@ -142,34 +140,30 @@ public abstract class SqlServerMigrationEngine : EfCoreMigrationEngine
         await base.RunAfterAsync();
     }
 
-    /// <summary>
-    /// Releases the application lock explicitly.
-    /// </summary>
-    /// <remarks>
-    /// This is called automatically by <see cref="RunAfterAsync"/>.
-    /// The lock is also released automatically when the connection closes.
-    /// </remarks>
-    protected async Task ReleaseLockAsync()
+    private async Task ReleaseLockAsync()
     {
-        if (DbContext == null)
+        if (DbContext is null)
         {
             return;
         }
 
         var connection = DbContext.Database.GetDbConnection();
 
-        if (connection.State == ConnectionState.Open)
+        if (connection.State is ConnectionState.Open)
         {
             using var command = connection.CreateCommand();
+
             command.CommandText = @"
                 EXEC sp_releaseapplock
                     @Resource = @resourceName,
                     @LockOwner = 'Session';";
 
             var resourceParam = command.CreateParameter();
+
             resourceParam.ParameterName = "@resourceName";
             resourceParam.Value = LockResourceName;
             resourceParam.DbType = DbType.String;
+
             command.Parameters.Add(resourceParam);
 
             try

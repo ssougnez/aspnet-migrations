@@ -3,9 +3,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Interfaces;
-using AreaProg.AspNetCore.Migrations.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +43,8 @@ public class ApplicationMigrationEngine<T>(
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    private BaseMigration[] _applicationMigrations = Array.Empty<BaseMigration>();
+    private BaseMigration[] _applicationMigrations = [];
+
     private volatile bool _hasRun;
 
     /// <inheritdoc />
@@ -117,7 +118,7 @@ public class ApplicationMigrationEngine<T>(
 
         if (current <= target)
         {
-            var dbContext = options.DbContext != null ? scope.ServiceProvider.GetService(options.DbContext) as DbContext : null;
+            var dbContext = options.DbContext is not null ? scope.ServiceProvider.GetService(options.DbContext) as DbContext : null;
 
             // Determine which application migrations will run
             var pendingAppMigrations = _applicationMigrations
@@ -132,7 +133,7 @@ public class ApplicationMigrationEngine<T>(
                 migration.Cache = new Dictionary<string, object>();
             }
 
-            if (dbContext != null)
+            if (dbContext is not null)
             {
                 var pendingEfMigrations = await dbContext.Database.GetPendingMigrationsAsync();
 
@@ -172,7 +173,7 @@ public class ApplicationMigrationEngine<T>(
             {
                 logger.LogInformation("Applying version {Version}", migration.Version);
 
-                if (dbContext != null)
+                if (dbContext is not null)
                 {
                     using var transaction = await dbContext.Database.BeginTransactionAsync();
 
@@ -205,9 +206,9 @@ public class ApplicationMigrationEngine<T>(
     /// <param name="type">The type to check.</param>
     /// <param name="baseType">The base type to look for in the inheritance chain.</param>
     /// <returns><c>true</c> if <paramref name="type"/> inherits from <paramref name="baseType"/>; otherwise, <c>false</c>.</returns>
-    private bool IsInheritingFrom(Type type, Type baseType)
+    private static bool IsInheritingFrom(Type type, Type baseType)
     {
-        while (type.BaseType != null)
+        while (type.BaseType is not null)
         {
             if (type.BaseType == baseType)
             {
@@ -221,15 +222,15 @@ public class ApplicationMigrationEngine<T>(
     }
 
     /// <summary>
-    /// Discovers and instantiates all migration classes from the engine's assembly.
+    /// Discovers and instantiates all migration classes from the configured assembly.
     /// </summary>
     /// <param name="scope">The service scope for resolving migration dependencies.</param>
-    /// <param name="engine">The migration engine whose assembly will be scanned for migrations.</param>
+    /// <param name="engine">The migration engine (used as fallback if no assembly is configured).</param>
     private void PopulateApplicationMigrations(IServiceScope scope, BaseMigrationEngine engine)
     {
-        _applicationMigrations = engine
-            .GetType()
-            .Assembly
+        var assembly = options.MigrationsAssembly ?? engine.GetType().Assembly;
+
+        _applicationMigrations = assembly
             .GetTypes()
             .Where(t => IsInheritingFrom(t, typeof(BaseMigration)) && !t.IsAbstract)
             .Select(t => ActivatorUtilities.CreateInstance(scope.ServiceProvider, t))
@@ -242,6 +243,7 @@ public class ApplicationMigrationEngine<T>(
     public void Dispose()
     {
         _semaphore.Dispose();
+
         GC.SuppressFinalize(this);
     }
 }

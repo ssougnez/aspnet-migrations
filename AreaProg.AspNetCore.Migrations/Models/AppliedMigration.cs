@@ -9,7 +9,7 @@ using System.ComponentModel.DataAnnotations;
 /// <remarks>
 /// <para>
 /// Add this entity to your <see cref="Microsoft.EntityFrameworkCore.DbContext"/> to use
-/// <see cref="EfCoreMigrationEngine"/> or <see cref="SqlServerMigrationEngine"/>:
+/// <see cref="Abstractions.EfCoreMigrationEngine"/> or <see cref="Abstractions.SqlServerMigrationEngine"/>:
 /// </para>
 /// <code>
 /// public class AppDbContext : DbContext

@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+#### Namespace reorganization
+
+Classes have been moved to more appropriate namespaces:
+
+| Class | Old Namespace | New Namespace |
+|-------|---------------|---------------|
+| `BaseMigration` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Abstractions` |
+| `BaseMigrationEngine` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Abstractions` |
+| `EfCoreMigrationEngine` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Abstractions` |
+| `SqlServerMigrationEngine` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Abstractions` |
+| `DefaultEfCoreMigrationEngine` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Engines` |
+| `DefaultSqlServerMigrationEngine` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.AspNetCore.Migrations.Engines` |
+
+**Migration:** Update your `using` statements:
+
+```csharp
+// Before (v1.x)
+using AreaProg.AspNetCore.Migrations.Models;
+
+// After (v2.x)
+using AreaProg.AspNetCore.Migrations.Abstractions; // For BaseMigration, BaseMigrationEngine, EfCoreMigrationEngine, SqlServerMigrationEngine
+using AreaProg.AspNetCore.Migrations.Engines;      // For DefaultEfCoreMigrationEngine, DefaultSqlServerMigrationEngine
+```
+
 #### `ShouldRun` property replaced by `ShouldRunAsync()` method
 
 The synchronous `ShouldRun` property on `BaseMigrationEngine` has been replaced with an asynchronous `ShouldRunAsync()` method to support distributed locking scenarios.
@@ -63,6 +87,27 @@ public override async Task PrepareMigrationAsync(IDictionary<string, object> cac
 #### Each migration now has its own isolated cache
 
 Previously, all migrations shared a single cache dictionary. Now each migration has its own isolated cache instance, preventing key collisions between migrations.
+
+#### `AddApplicationMigrations` with setup action is no longer public
+
+The `AddApplicationMigrations<TEngine>(Action<ApplicationMigrationsOptions>)` overload has been made internal. Use the generic overloads instead:
+
+**Before (v1.x):**
+```csharp
+services.AddApplicationMigrations<MyEngine>(options =>
+{
+    options.DbContext = typeof(MyDbContext);
+});
+```
+
+**After (v2.x):**
+```csharp
+// With DbContext integration
+services.AddApplicationMigrations<MyEngine, MyDbContext>();
+
+// Without DbContext (no EF Core integration)
+services.AddApplicationMigrations<MyEngine>();
+```
 
 ### Added
 
@@ -148,6 +193,16 @@ builder.Services.AddApplicationMigrations<MyEngine>(options =>
 builder.Services.AddApplicationMigrations<MyEngine, MyDbContext>();
 ```
 
+#### `MigrationsAssembly` property on `ApplicationMigrationsOptions`
+
+A new property to explicitly specify which assembly to scan for migration classes. This is particularly useful when using built-in engines (`DefaultEfCoreMigrationEngine`, `DefaultSqlServerMigrationEngine`) since these are in the NuGet package assembly, not your application.
+
+**Default behavior:**
+- `AddApplicationMigrations<TEngine, TDbContext>()` → scans the `TDbContext` assembly (recommended for built-in engines)
+- `AddApplicationMigrations<TEngine>()` → scans the `TEngine` assembly
+
+**Important:** When using built-in engines like `DefaultSqlServerMigrationEngine`, always use the `<TEngine, TDbContext>` overload so migrations are discovered from your application's assembly (via the DbContext).
+
 #### `PrepareMigrationAsync` method on `BaseMigration`
 
 A new per-migration hook for capturing data before EF Core schema changes. Unlike the global `RunBeforeDatabaseMigrationAsync` on the engine, this method is specific to each migration version.
@@ -195,7 +250,22 @@ public class Migration_1_2_0 : BaseMigration
 
 ### Migration Guide from v1.x to v2.x
 
-1. **Update `ShouldRun` to `ShouldRunAsync()`:**
+1. **Update `AddApplicationMigrations` registration:**
+   ```csharp
+   // Before
+   services.AddApplicationMigrations<MyEngine>(options =>
+   {
+       options.DbContext = typeof(MyDbContext);
+   });
+
+   // After - with DbContext
+   services.AddApplicationMigrations<MyEngine, MyDbContext>();
+
+   // After - without DbContext
+   services.AddApplicationMigrations<MyEngine>();
+   ```
+
+2. **Update `ShouldRun` to `ShouldRunAsync()`:**
    ```csharp
    // Before
    public override bool ShouldRun => _config.GetValue<bool>("Migrations:Enabled");
@@ -205,7 +275,7 @@ public class Migration_1_2_0 : BaseMigration
        => Task.FromResult(_config.GetValue<bool>("Migrations:Enabled"));
    ```
 
-2. **Update `RunBeforeDatabaseMigrationAsync` signature:**
+3. **Update `RunBeforeDatabaseMigrationAsync` signature:**
 
    If you were capturing data in `RunBeforeDatabaseMigrationAsync`, move that logic to `PrepareMigrationAsync` in individual migrations:
 
@@ -230,7 +300,7 @@ public class Migration_1_2_0 : BaseMigration
    }
    ```
 
-3. **(Optional) Simplify your engine using `EfCoreMigrationEngine`:**
+4. **(Optional) Simplify your engine using `EfCoreMigrationEngine`:**
 
    If you were manually implementing `GetAppliedVersionsAsync()` and `RegisterVersionAsync()` with a database table, you can now inherit from `EfCoreMigrationEngine` instead:
 
@@ -264,7 +334,7 @@ public class Migration_1_2_0 : BaseMigration
    }
    ```
 
-3. **(Optional) Add distributed locking for SQL Server:**
+5. **(Optional) Add distributed locking for SQL Server:**
 
    Replace `EfCoreMigrationEngine` with `SqlServerMigrationEngine`:
 
@@ -278,7 +348,7 @@ public class Migration_1_2_0 : BaseMigration
    }
    ```
 
-4. **Add `AppliedMigration` to your DbContext:**
+6. **Add `AppliedMigration` to your DbContext:**
 
    If using `EfCoreMigrationEngine` or `SqlServerMigrationEngine`:
 

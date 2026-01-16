@@ -1,5 +1,6 @@
-namespace AreaProg.AspNetCore.Migrations.Models;
+namespace AreaProg.AspNetCore.Migrations.Engines;
 
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using System;
 

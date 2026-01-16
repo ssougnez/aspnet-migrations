@@ -1,6 +1,6 @@
 namespace AreaProg.AspNetCore.Migrations.Tests;
 
-using AreaProg.AspNetCore.Migrations.Models;
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Tests.Fixtures;
 using FluentAssertions;
 using Xunit;

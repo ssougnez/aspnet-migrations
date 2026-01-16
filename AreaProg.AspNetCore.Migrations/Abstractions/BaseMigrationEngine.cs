@@ -1,4 +1,4 @@
-namespace AreaProg.AspNetCore.Migrations.Models;
+namespace AreaProg.AspNetCore.Migrations.Abstractions;
 
 using System;
 using System.Diagnostics.CodeAnalysis;

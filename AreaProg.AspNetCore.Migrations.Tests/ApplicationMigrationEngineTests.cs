@@ -415,15 +415,12 @@ public class ApplicationMigrationEngineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task FullIntegration_WithOptions_ShouldConfigureDbContext()
+    public async Task FullIntegration_WithDbContext_ShouldConfigureDbContext()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddApplicationMigrations<TestMigrationEngine>(options =>
-        {
-            options.DbContext = typeof(TestDbContext);
-        });
+        services.AddApplicationMigrations<TestMigrationEngine, TestDbContext>();
 
         var serviceProvider = services.BuildServiceProvider();
         var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();

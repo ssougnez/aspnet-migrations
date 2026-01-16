@@ -1,5 +1,6 @@
-namespace AreaProg.AspNetCore.Migrations.Models;
+namespace AreaProg.AspNetCore.Migrations.Abstractions;
 
+using AreaProg.AspNetCore.Migrations.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -35,7 +36,14 @@ using System.Threading.Tasks;
 /// }
 /// </code>
 /// </remarks>
-public abstract class EfCoreMigrationEngine : BaseMigrationEngine
+/// <param name="serviceProvider">
+/// The service provider to resolve the DbContext from.
+/// This should be a scoped provider (as provided by ApplicationMigrationEngine).
+/// </param>
+/// <param name="dbContextType">
+/// The type of DbContext to use, typically from <c>ApplicationMigrationsOptions.DbContext</c>.
+/// </param>
+public abstract class EfCoreMigrationEngine(IServiceProvider serviceProvider, Type? dbContextType) : BaseMigrationEngine
 {
     /// <summary>
     /// Gets the DbContext used for version tracking.
@@ -43,24 +51,7 @@ public abstract class EfCoreMigrationEngine : BaseMigrationEngine
     /// <remarks>
     /// May be null if no DbContext type was configured in the migration options.
     /// </remarks>
-    protected DbContext? DbContext { get; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EfCoreMigrationEngine"/> class.
-    /// </summary>
-    /// <param name="serviceProvider">
-    /// The service provider to resolve the DbContext from.
-    /// This should be a scoped provider (as provided by ApplicationMigrationEngine).
-    /// </param>
-    /// <param name="dbContextType">
-    /// The type of DbContext to use, typically from <c>ApplicationMigrationsOptions.DbContext</c>.
-    /// </param>
-    protected EfCoreMigrationEngine(IServiceProvider serviceProvider, Type? dbContextType)
-    {
-        DbContext = dbContextType != null
-            ? serviceProvider.GetService(dbContextType) as DbContext
-            : null;
-    }
+    protected DbContext? DbContext { get; } = dbContextType is not null ? serviceProvider.GetService(dbContextType) as DbContext : null;
 
     /// <summary>
     /// Retrieves all previously applied migration versions from the database.
@@ -74,25 +65,25 @@ public abstract class EfCoreMigrationEngine : BaseMigrationEngine
     /// <returns>An array of applied versions, or an empty array if the table doesn't exist yet.</returns>
     public override async Task<Version[]> GetAppliedVersionsAsync()
     {
-        if (DbContext == null || !await DbContext.Database.CanConnectAsync())
+        if (DbContext is null || !await DbContext.Database.CanConnectAsync())
         {
-            return Array.Empty<Version>();
+            return [];
         }
 
         try
         {
-            var versions = await DbContext.Set<AppliedMigration>()
+            var versions = await DbContext
+                .Set<AppliedMigration>()
+                .AsNoTracking()
                 .Select(m => m.Version)
                 .ToListAsync();
 
-            return versions
-                .Select(v => Version.Parse(v))
-                .ToArray();
+            return [.. versions.Select(Version.Parse)];
         }
         catch
         {
             // Table doesn't exist yet - EF Core migrations will create it
-            return Array.Empty<Version>();
+            return [];
         }
     }
 
@@ -106,14 +97,15 @@ public abstract class EfCoreMigrationEngine : BaseMigrationEngine
     /// <returns>A task representing the asynchronous operation.</returns>
     public override async Task RegisterVersionAsync(Version version)
     {
-        if (DbContext == null)
+        if (DbContext is null)
         {
             return;
         }
 
         var versionString = version.ToString();
 
-        var exists = await DbContext.Set<AppliedMigration>()
+        var exists = await DbContext
+            .Set<AppliedMigration>()
             .AnyAsync(m => m.Version == versionString);
 
         if (!exists)

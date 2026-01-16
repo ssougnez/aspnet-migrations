@@ -90,51 +90,18 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddApplicationMigrations_WithSetupAction_ShouldInvokeAction()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        var actionInvoked = false;
-
-        // Act
-        services.AddApplicationMigrations<TestMigrationEngine>(options =>
-        {
-            actionInvoked = true;
-        });
-
-        // Assert
-        actionInvoked.Should().BeTrue();
-    }
-
-    [Fact]
-    public void AddApplicationMigrations_WithSetupAction_ShouldConfigureDbContext()
+    public void AddApplicationMigrations_WithDbContext_ShouldConfigureDbContext()
     {
         // Arrange
         var services = new ServiceCollection();
 
         // Act
-        services.AddApplicationMigrations<TestMigrationEngine>(options =>
-        {
-            options.DbContext = typeof(TestDbContext);
-        });
+        services.AddApplicationMigrations<TestMigrationEngine, TestDbContext>();
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<ApplicationMigrationsOptions>();
 
         // Assert
         options.DbContext.Should().Be(typeof(TestDbContext));
-    }
-
-    [Fact]
-    public void AddApplicationMigrations_WithNullSetupAction_ShouldNotThrow()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act
-        var action = () => services.AddApplicationMigrations<TestMigrationEngine>(null);
-
-        // Assert
-        action.Should().NotThrow();
     }
 
     [Fact]
@@ -153,29 +120,22 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddApplicationMigrations_CalledMultipleTimes_ShouldOverwritePrevious()
+    public void AddApplicationMigrations_CalledMultipleTimes_ShouldRegisterBoth()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
         // Act
-        services.AddApplicationMigrations<TestMigrationEngine>(options =>
-        {
-            options.DbContext = typeof(TestDbContext);
-        });
-        services.AddApplicationMigrations<TestMigrationEngine>(options =>
-        {
-            options.DbContext = null;
-        });
+        services.AddApplicationMigrations<TestMigrationEngine, TestDbContext>();
+        services.AddApplicationMigrations<TestMigrationEngine>();
         var serviceProvider = services.BuildServiceProvider();
 
-        // Assert - the second registration should take effect
-        // Note: ServiceCollection does not automatically replace, so both are registered
-        // but GetService returns the last registered one
-        var options = serviceProvider.GetServices<ApplicationMigrationsOptions>()
-            .LastOrDefault();
-        options?.DbContext.Should().BeNull();
+        // Assert - ServiceCollection does not automatically replace, so both are registered
+        var allOptions = serviceProvider.GetServices<ApplicationMigrationsOptions>().ToList();
+        allOptions.Should().HaveCount(2);
+        allOptions[0].DbContext.Should().Be(typeof(TestDbContext));
+        allOptions[1].DbContext.Should().BeNull();
     }
 
     [Fact]

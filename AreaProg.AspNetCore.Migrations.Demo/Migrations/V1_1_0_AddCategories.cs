@@ -1,6 +1,6 @@
 using AreaProg.AspNetCore.Migrations.Demo.Data;
 using AreaProg.AspNetCore.Migrations.Demo.Data.Entities;
-using AreaProg.AspNetCore.Migrations.Models;
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
