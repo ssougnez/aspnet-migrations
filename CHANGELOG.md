@@ -164,6 +164,26 @@ public class AppMigrationEngine : SqlServerMigrationEngine
 - Lock is released automatically when the connection/transaction ends
 - Other instances wait or skip based on lock timeout configuration
 
+**Configurable properties:**
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `LockResourceName` | `"AppMigrations"` | Name of the SQL Server application lock resource. Override to use different lock scopes for different engines. |
+| `LockTimeoutMs` | `0` (no wait) | Lock acquisition timeout in milliseconds. `0` = skip if locked, positive value = wait, `-1` = infinite wait (not recommended). |
+
+```csharp
+public class AppMigrationEngine : SqlServerMigrationEngine
+{
+    public AppMigrationEngine(
+        ApplicationMigrationsOptions<AppMigrationEngine> options,
+        IServiceProvider serviceProvider)
+        : base(serviceProvider, options.DbContext) { }
+
+    protected override string LockResourceName => "MyApp_Migrations";
+    protected override int LockTimeoutMs => 5000; // Wait up to 5 seconds
+}
+```
+
 #### `DefaultEfCoreMigrationEngine` and `DefaultSqlServerMigrationEngine` classes
 
 Ready-to-use concrete implementations for projects that don't need custom lifecycle hooks:

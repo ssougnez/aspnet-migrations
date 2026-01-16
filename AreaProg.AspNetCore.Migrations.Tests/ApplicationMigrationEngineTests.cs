@@ -415,7 +415,7 @@ public class ApplicationMigrationEngineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task FullIntegration_WithDbContext_ShouldConfigureDbContext()
+    public async Task FullIntegration_WithDbContext_NotRegistered_ShouldThrowWithClearMessage()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -425,12 +425,11 @@ public class ApplicationMigrationEngineIntegrationTests : IDisposable
         var serviceProvider = services.BuildServiceProvider();
         var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
 
-        // Act - this should not throw even though DbContext is not registered
-        // because the engine checks if DbContext is null from service provider
-        await engine.RunAsync();
+        // Act & Assert - should throw because DbContext is configured but not registered
+        var action = async () => await engine.RunAsync();
 
-        // Assert
-        engine.HasRun.Should().BeTrue();
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*TestDbContext*is configured for migrations but is not registered*");
     }
 
     [Fact]

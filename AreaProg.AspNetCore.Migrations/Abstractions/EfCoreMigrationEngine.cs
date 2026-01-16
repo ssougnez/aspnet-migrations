@@ -3,6 +3,7 @@ namespace AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -80,11 +81,27 @@ public abstract class EfCoreMigrationEngine(IServiceProvider serviceProvider, Ty
 
             return [.. versions.Select(Version.Parse)];
         }
-        catch
+        catch (Exception ex) when (IsTableNotExistsException(ex))
         {
             // Table doesn't exist yet - EF Core migrations will create it
             return [];
         }
+    }
+
+    private static bool IsTableNotExistsException(Exception ex)
+    {
+        // Check the inner exception for database-level errors
+        // Common patterns across providers: "Invalid object name" (SQL Server),
+        // "does not exist" (PostgreSQL), "no such table" (SQLite)
+        if (ex.InnerException is DbException dbEx)
+        {
+            var message = dbEx.Message;
+            return message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("no such table", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 
     /// <summary>

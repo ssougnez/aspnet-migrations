@@ -118,7 +118,7 @@ public class ApplicationMigrationEngine<T>(
 
         if (current <= target)
         {
-            var dbContext = options.DbContext is not null ? scope.ServiceProvider.GetService(options.DbContext) as DbContext : null;
+            var dbContext = ResolveDbContext(scope);
 
             // Determine which application migrations will run
             var pendingAppMigrations = _applicationMigrations
@@ -198,6 +198,39 @@ public class ApplicationMigrationEngine<T>(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Resolves the DbContext from the service provider if configured.
+    /// </summary>
+    /// <param name="scope">The service scope for resolving the DbContext.</param>
+    /// <returns>The resolved DbContext, or null if not configured.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a DbContext type is configured but cannot be resolved from the service provider.
+    /// </exception>
+    private DbContext? ResolveDbContext(IServiceScope scope)
+    {
+        if (options.DbContext is null)
+        {
+            return null;
+        }
+
+        var service = scope.ServiceProvider.GetService(options.DbContext);
+
+        if (service is null)
+        {
+            throw new InvalidOperationException(
+                $"The DbContext type '{options.DbContext.Name}' is configured for migrations but is not registered in the service provider. " +
+                $"Ensure that '{options.DbContext.Name}' is added to the service collection before calling AddApplicationMigrations.");
+        }
+
+        if (service is not DbContext dbContext)
+        {
+            throw new InvalidOperationException(
+                $"The type '{options.DbContext.Name}' is configured as a DbContext but does not inherit from DbContext.");
+        }
+
+        return dbContext;
     }
 
     /// <summary>

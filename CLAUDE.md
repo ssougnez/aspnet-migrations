@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+For complete documentation, see the [README.md](README.md).
+
 ## Project Overview
 
 AreaProg.AspNetCore.Migrations is a .NET class library (NuGet package) that provides application-level migration infrastructure for ASP.NET Core applications. It complements Entity Framework Core database migrations by enabling versioned application migrations with lifecycle hooks.

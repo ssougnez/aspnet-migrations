@@ -3,6 +3,7 @@ namespace AreaProg.AspNetCore.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Interfaces;
 using AreaProg.AspNetCore.Migrations.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Reflection;
@@ -77,7 +78,7 @@ public static class ServiceCollectionExtensions
     /// </example>
     public static IServiceCollection AddApplicationMigrations<TEngine, TDbContext>(this IServiceCollection services)
         where TEngine : BaseMigrationEngine
-        where TDbContext : class
+        where TDbContext : DbContext
     {
         return services.AddApplicationMigrationsInternal<TEngine>(options =>
         {

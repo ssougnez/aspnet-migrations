@@ -48,11 +48,11 @@ builder.Services.AddApplicationMigrations<DefaultEfCoreMigrationEngine, MyDbCont
 **Option B: Create a custom engine (for lifecycle hooks)**
 
 ```csharp
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
-using AreaProg.AspNetCore.Migrations.Models;
 
 public class MyMigrationEngine(
-    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    ApplicationMigrationsOptions options,
     IServiceProvider serviceProvider
 ) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
 {
@@ -97,10 +97,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<MyDbContext>(...);
 
-builder.Services.AddApplicationMigrations<MyMigrationEngine>(options =>
-{
-    options.DbContext = typeof(MyDbContext);
-});
+builder.Services.AddApplicationMigrations<MyMigrationEngine, MyDbContext>();
 
 var app = builder.Build();
 
@@ -131,11 +128,11 @@ builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine, MyDbC
 **Option B: Create a custom engine (for custom lock settings or hooks)**
 
 ```csharp
+using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
-using AreaProg.AspNetCore.Migrations.Models;
 
 public class MyMigrationEngine(
-    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    ApplicationMigrationsOptions options,
     IServiceProvider serviceProvider
 ) : SqlServerMigrationEngine(serviceProvider, options.DbContext)
 {
@@ -153,7 +150,7 @@ public class MyMigrationEngine(
 public class MyMigrationEngine : SqlServerMigrationEngine
 {
     public MyMigrationEngine(
-        ApplicationMigrationsOptions<MyMigrationEngine> options,
+        ApplicationMigrationsOptions options,
         IServiceProvider serviceProvider
     ) : base(serviceProvider, options.DbContext) { }
 
@@ -181,7 +178,7 @@ For non-SQL Server databases, use configuration to designate a "master" instance
 
 ```csharp
 public class MyMigrationEngine(
-    ApplicationMigrationsOptions<MyMigrationEngine> options,
+    ApplicationMigrationsOptions options,
     IServiceProvider serviceProvider,
     IConfiguration configuration
 ) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
@@ -301,7 +298,7 @@ Override these methods in your engine for custom behavior:
 public class MyMigrationEngine : EfCoreMigrationEngine
 {
     public MyMigrationEngine(
-        ApplicationMigrationsOptions<MyMigrationEngine> options,
+        ApplicationMigrationsOptions options,
         IServiceProvider serviceProvider
     ) : base(serviceProvider, options.DbContext) { }
 
@@ -419,6 +416,27 @@ public class MyMigrationEngine : BaseMigrationEngine
         return Task.FromResult(true);
     }
 }
+```
+
+## Migration Discovery
+
+Migrations are discovered automatically by scanning an assembly for classes inheriting from `BaseMigration`.
+
+**Which assembly is scanned?**
+
+| Registration Method | Assembly Scanned |
+|---------------------|------------------|
+| `AddApplicationMigrations<TEngine, TDbContext>()` | `TDbContext`'s assembly |
+| `AddApplicationMigrations<TEngine>()` | `TEngine`'s assembly |
+
+**Important:** When using built-in engines (`DefaultEfCoreMigrationEngine`, `DefaultSqlServerMigrationEngine`), always use the `<TEngine, TDbContext>` overload. This ensures migrations are discovered from your application's assembly (via the DbContext), not from the NuGet package.
+
+```csharp
+// Correct - migrations discovered from MyDbContext's assembly
+builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine, MyDbContext>();
+
+// Wrong - would scan the NuGet package assembly (no migrations there!)
+builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine>();
 ```
 
 ## Async Support
