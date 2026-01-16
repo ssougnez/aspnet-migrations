@@ -64,27 +64,20 @@ public class MyMigrationEngine(
 }
 ```
 
-The base class handles `GetAppliedVersionsAsync()` and `RegisterVersionAsync()` automatically.
+The base class handles `GetAppliedVersionsAsync()` and `RegisterVersionAsync()` automatically (see [Custom Version Storage](#advanced-custom-version-storage) for details).
 
 ### 3. Create a Migration
 
 ```csharp
-public class Migration_1_0_0 : BaseMigration
+public class Migration_1_0_0(MyDbContext db) : BaseMigration
 {
-    private readonly MyDbContext _db;
-
-    public Migration_1_0_0(MyDbContext db)
-    {
-        _db = db;
-    }
-
     public override Version Version => new(1, 0, 0);
 
     public override async Task UpAsync()
     {
         // Your migration code here
-        await _db.Users.AddAsync(new User { Name = "Admin", IsAdmin = true });
-        await _db.SaveChangesAsync();
+        await db.Users.AddAsync(new User { Name = "Admin", IsAdmin = true });
+        await db.SaveChangesAsync();
     }
 }
 ```
@@ -147,13 +140,11 @@ public class MyMigrationEngine(
 **Customization (requires custom engine):**
 
 ```csharp
-public class MyMigrationEngine : SqlServerMigrationEngine
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions options,
+    IServiceProvider serviceProvider
+) : SqlServerMigrationEngine(serviceProvider, options.DbContext)
 {
-    public MyMigrationEngine(
-        ApplicationMigrationsOptions options,
-        IServiceProvider serviceProvider
-    ) : base(serviceProvider, options.DbContext) { }
-
     // Custom lock name (default: "AppMigrations")
     protected override string LockResourceName => "MyApp_Migrations";
 
@@ -188,31 +179,56 @@ public class MyMigrationEngine(
 }
 ```
 
+### Using Redis (Redlock)
+
+For distributed locking across any database type, you can use Redis with the [Redlock algorithm](https://redis.io/docs/manual/patterns/distributed-locks/). Override `ShouldRunAsync()` to acquire a distributed lock:
+
+```csharp
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions options,
+    IServiceProvider serviceProvider,
+    IDistributedLockFactory lockFactory  // From RedLock.net or similar
+) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
+{
+    private IRedLock? _lock;
+
+    public override async Task<bool> ShouldRunAsync()
+    {
+        _lock = await lockFactory.CreateLockAsync(
+            "app-migrations",
+            expiryTime: TimeSpan.FromMinutes(5),
+            waitTime: TimeSpan.Zero,      // Don't wait, skip if locked
+            retryTime: TimeSpan.FromMilliseconds(100));
+
+        return _lock.IsAcquired;
+    }
+
+    public override async Task RunAfterAsync()
+    {
+        if (_lock != null)
+            await _lock.DisposeAsync();
+    }
+}
+```
+
+This approach works with any database (PostgreSQL, MySQL, SQLite, etc.) as long as you have Redis available.
+
 ## Using Dependency Injection
 
 Migrations support constructor injection:
 
 ```csharp
-public class Migration_1_1_0 : BaseMigration
+public class Migration_1_1_0(MyDbContext db, IEmailService email) : BaseMigration
 {
-    private readonly MyDbContext _db;
-    private readonly IEmailService _email;
-
-    public Migration_1_1_0(MyDbContext db, IEmailService email)
-    {
-        _db = db;
-        _email = email;
-    }
-
     public override Version Version => new(1, 1, 0);
 
     public override async Task UpAsync()
     {
-        var admins = await _db.Users.Where(u => u.IsAdmin).ToListAsync();
+        var admins = await db.Users.Where(u => u.IsAdmin).ToListAsync();
 
         foreach (var admin in admins)
         {
-            await _email.SendAsync(admin.Email, "System upgraded to 1.1.0");
+            await email.SendAsync(admin.Email, "System upgraded to 1.1.0");
         }
     }
 }
@@ -295,13 +311,11 @@ The `FirstTime` property is `true` when the migration version has never been reg
 Override these methods in your engine for custom behavior:
 
 ```csharp
-public class MyMigrationEngine : EfCoreMigrationEngine
+public class MyMigrationEngine(
+    ApplicationMigrationsOptions options,
+    IServiceProvider serviceProvider
+) : EfCoreMigrationEngine(serviceProvider, options.DbContext)
 {
-    public MyMigrationEngine(
-        ApplicationMigrationsOptions options,
-        IServiceProvider serviceProvider
-    ) : base(serviceProvider, options.DbContext) { }
-
     // Called before any migrations
     public override Task RunBeforeAsync() { ... }
 
@@ -336,18 +350,14 @@ public class MyMigrationEngine : EfCoreMigrationEngine
 When changing column types (e.g., `int` enum to `string`), you need to capture data before the schema change. Use `PrepareMigrationAsync` and the `Cache`:
 
 ```csharp
-public class Migration_1_2_0 : BaseMigration
+public class Migration_1_2_0(MyDbContext db) : BaseMigration
 {
-    private readonly MyDbContext _db;
-
-    public Migration_1_2_0(MyDbContext db) => _db = db;
-
     public override Version Version => new(1, 2, 0);
 
     // Called BEFORE EF Core migrations - schema hasn't changed yet
     public override async Task PrepareMigrationAsync(IDictionary<string, object> cache)
     {
-        var statuses = await _db.Database
+        var statuses = await db.Database
             .SqlQueryRaw<OldStatus>("SELECT Id, Status FROM Orders")
             .ToListAsync();
 
@@ -371,7 +381,7 @@ public class Migration_1_2_0 : BaseMigration
                     _ => "unknown"
                 };
 
-                await _db.Database.ExecuteSqlAsync(
+                await db.Database.ExecuteSqlAsync(
                     $"UPDATE Orders SET Status = {newValue} WHERE Id = {item.Id}");
             }
         }
@@ -386,19 +396,12 @@ This keeps the data capture logic with the migration that needs it, rather than 
 If you need custom storage (file, Redis, raw SQL, etc.), inherit from `BaseMigrationEngine` directly:
 
 ```csharp
-public class MyMigrationEngine : BaseMigrationEngine
+public class MyMigrationEngine(MyDbContext db) : BaseMigrationEngine
 {
-    private readonly MyDbContext _db;
-
-    public MyMigrationEngine(MyDbContext db)
-    {
-        _db = db;
-    }
-
     public override async Task<Version[]> GetAppliedVersionsAsync()
     {
         // Custom implementation
-        return await _db.AppliedMigrations
+        return await db.AppliedMigrations
             .Select(m => new Version(m.Version))
             .ToArrayAsync();
     }
@@ -406,8 +409,8 @@ public class MyMigrationEngine : BaseMigrationEngine
     public override async Task RegisterVersionAsync(Version version)
     {
         // Custom implementation
-        _db.AppliedMigrations.Add(new AppliedMigration { Version = version.ToString() });
-        await _db.SaveChangesAsync();
+        db.AppliedMigrations.Add(new AppliedMigration { Version = version.ToString() });
+        await db.SaveChangesAsync();
     }
 
     public override Task<bool> ShouldRunAsync()
