@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-01-17
+
+### Added
+
+#### `RunEFCoreMigrationAsync` virtual method on `BaseMigrationEngine`
+
+A new virtual method that allows customizing how Entity Framework Core migrations are executed. Override this method in your migration engine to implement custom behavior such as:
+
+- Custom command timeout values
+- Per-migration logging
+- Custom execution strategies
+- Progress reporting
+
+**Default behavior:**
+```csharp
+public virtual async Task RunEFCoreMigrationAsync(DbContext? dbContext)
+{
+    if (dbContext is null) return;
+
+    var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+
+    if (pendingMigrations.Any())
+    {
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(15));
+
+            await dbContext.Database.MigrateAsync();
+        });
+    }
+}
+```
+
+**Custom implementation example:**
+```csharp
+public class MyMigrationEngine : EfCoreMigrationEngine
+{
+    private readonly ILogger<MyMigrationEngine> _logger;
+
+    public MyMigrationEngine(
+        ApplicationMigrationsOptions options,
+        IServiceProvider serviceProvider,
+        ILogger<MyMigrationEngine> logger)
+        : base(serviceProvider, options.DbContext)
+    {
+        _logger = logger;
+    }
+
+    public override async Task RunEFCoreMigrationAsync(DbContext? dbContext)
+    {
+        if (dbContext is null) return;
+
+        var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+
+        foreach (var migration in pendingMigrations)
+        {
+            _logger.LogInformation("Applying EF Core migration: {Migration}", migration);
+        }
+
+        // Custom timeout
+        dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(5));
+
+        await dbContext.Database.MigrateAsync();
+    }
+}
+```
+
+---
+
 ## [2.0.0] - 2026-01-16
 
 ### Breaking Changes
