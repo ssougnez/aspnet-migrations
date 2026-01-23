@@ -5,6 +5,7 @@ using AreaProg.Migrations.Engines;
 using AreaProg.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,15 +50,13 @@ var app = builder.Build();
 // - RunAfterDatabaseMigrationAsync() hook (if EF migrations ran)
 // - Application migrations (BaseMigration.UpAsync() for each pending version)
 // - RunAfterAsync() hook
-await app.UseMigrationsAsync(opt =>
-{
-    opt.EnforceLatestMigration = false;
-});
+await app.UseMigrationsAsync();
 
 // Configure OpenAPI in development
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();

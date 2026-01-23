@@ -39,7 +39,7 @@ var host = Host.CreateDefaultBuilder(args)
 Console.WriteLine("Running migrations via host.RunMigrationsAsync()...");
 Console.WriteLine();
 
-await host.RunMigrationsAsync(opt => opt.EnforceLatestMigration = false);
+await host.RunMigrationsAsync();
 
 // Display the results
 Console.WriteLine();
