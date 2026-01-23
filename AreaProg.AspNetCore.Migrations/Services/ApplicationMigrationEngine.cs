@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Interfaces;
+using AreaProg.AspNetCore.Migrations.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -51,10 +52,16 @@ public class ApplicationMigrationEngine<T>(
     public bool HasRun => _hasRun;
 
     /// <inheritdoc />
-    public void Run() => RunAsync().GetAwaiter().GetResult();
+    public void Run() => Run(new UseMigrationsOptions());
 
     /// <inheritdoc />
-    public async Task RunAsync()
+    public void Run(UseMigrationsOptions runtimeOptions) => RunAsync(runtimeOptions).GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public Task RunAsync() => RunAsync(new UseMigrationsOptions());
+
+    /// <inheritdoc />
+    public async Task RunAsync(UseMigrationsOptions runtimeOptions)
     {
         if (_hasRun)
         {
@@ -86,7 +93,7 @@ public class ApplicationMigrationEngine<T>(
 
                     await engine.RunBeforeAsync();
 
-                    await ApplyMigrationsAsync(engine, scope);
+                    await ApplyMigrationsAsync(engine, scope, runtimeOptions);
 
                     await engine.RunAfterAsync();
                 }
@@ -109,8 +116,9 @@ public class ApplicationMigrationEngine<T>(
     /// </summary>
     /// <param name="engine">The migration engine providing version tracking.</param>
     /// <param name="scope">The service scope for resolving scoped dependencies.</param>
+    /// <param name="runtimeOptions">The runtime options controlling migration behavior.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task ApplyMigrationsAsync(BaseMigrationEngine engine, IServiceScope scope)
+    private async Task ApplyMigrationsAsync(BaseMigrationEngine engine, IServiceScope scope, UseMigrationsOptions runtimeOptions)
     {
         var applied = (await engine.GetAppliedVersionsAsync()).OrderBy(v => v);
         var target = _applicationMigrations.LastOrDefault()?.Version ?? new Version(0, 0, 0);
@@ -121,8 +129,11 @@ public class ApplicationMigrationEngine<T>(
             var dbContext = ResolveDbContext(scope);
 
             // Determine which application migrations will run
+            // When EnforceLatestMigration is true, re-execute the current version migration (>= current)
+            // When EnforceLatestMigration is false (default), only run new migrations (> current)
             var pendingAppMigrations = _applicationMigrations
-                .Where(m => m.Version >= current && m.Version <= target)
+                .Where(m => runtimeOptions.EnforceLatestMigration ? m.Version >= current : m.Version > current)
+                .Where(m => m.Version <= target)
                 .OrderBy(m => m.Version)
                 .ToList();
 

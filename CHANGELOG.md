@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-01-23
+
+### Added
+
+#### `EnforceLatestMigration` option for `UseMigrations` / `UseMigrationsAsync`
+
+New options callback on `UseMigrations()` and `UseMigrationsAsync()` to control whether the current version migration is re-executed on application startup.
+
+**Usage:**
+```csharp
+// Default behavior (backward compatible) - re-executes current version
+await app.UseMigrationsAsync();
+
+// Production recommended - skip re-execution of current version
+await app.UseMigrationsAsync(opts =>
+{
+    opts.EnforceLatestMigration = env.IsDevelopment();
+});
+```
+
+**How it works:**
+
+| `EnforceLatestMigration` | Migrations executed |
+|--------------------------|---------------------|
+| `true` (default) | Versions `>= current` (re-executes current version) |
+| `false` | Versions `> current` (skips current version) |
+
+**Why use `EnforceLatestMigration = false` in production?**
+
+- **Faster startup**: Skips unnecessary re-execution of already-applied migrations
+- **Cleaner logs**: No repeated "Applying version X.Y.Z" messages for the same version
+- **Intentional behavior**: Makes the re-execution a conscious development choice, not a default
+
+The default is `true` for backward compatibility. In a future major version (v3.0.0), the default may change to `false`.
+
+**New interface methods:**
+
+The `IApplicationMigrationEngine` interface now includes overloads that accept `UseMigrationsOptions`:
+
+```csharp
+void Run(UseMigrationsOptions options);
+Task RunAsync(UseMigrationsOptions options);
+```
+
+---
+
 ## [2.1.0] - 2026-01-17
 
 ### Added

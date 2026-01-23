@@ -1,6 +1,7 @@
 namespace AreaProg.AspNetCore.Migrations.Tests;
 
 using AreaProg.AspNetCore.Migrations.Interfaces;
+using AreaProg.AspNetCore.Migrations.Models;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -27,15 +28,21 @@ public class IApplicationMigrationEngineTests
     [Fact]
     public void Interface_ShouldHaveRunMethod()
     {
-        // Assert
-        typeof(IApplicationMigrationEngine).GetMethod("Run").Should().NotBeNull();
+        // Assert - should have both parameterless and with options overloads
+        var methods = typeof(IApplicationMigrationEngine).GetMethods().Where(m => m.Name == "Run").ToArray();
+        methods.Should().HaveCount(2);
+        methods.Should().Contain(m => m.GetParameters().Length == 0);
+        methods.Should().Contain(m => m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(UseMigrationsOptions));
     }
 
     [Fact]
     public void Interface_ShouldHaveRunAsyncMethod()
     {
-        // Assert
-        typeof(IApplicationMigrationEngine).GetMethod("RunAsync").Should().NotBeNull();
+        // Assert - should have both parameterless and with options overloads
+        var methods = typeof(IApplicationMigrationEngine).GetMethods().Where(m => m.Name == "RunAsync").ToArray();
+        methods.Should().HaveCount(2);
+        methods.Should().Contain(m => m.GetParameters().Length == 0);
+        methods.Should().Contain(m => m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(UseMigrationsOptions));
     }
 
     [Fact]
@@ -91,5 +98,32 @@ public class IApplicationMigrationEngineTests
 
         // Assert
         mock.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public async Task MockImplementation_RunAsyncWithOptions_ShouldBeAwaitable()
+    {
+        // Arrange
+        var mock = new Mock<IApplicationMigrationEngine>();
+        mock.Setup(x => x.RunAsync(It.IsAny<UseMigrationsOptions>())).Returns(Task.CompletedTask);
+
+        // Act
+        await mock.Object.RunAsync(new UseMigrationsOptions());
+
+        // Assert
+        mock.Verify(x => x.RunAsync(It.IsAny<UseMigrationsOptions>()), Times.Once);
+    }
+
+    [Fact]
+    public void MockImplementation_RunWithOptions_ShouldBeCallable()
+    {
+        // Arrange
+        var mock = new Mock<IApplicationMigrationEngine>();
+
+        // Act
+        mock.Object.Run(new UseMigrationsOptions());
+
+        // Assert
+        mock.Verify(x => x.Run(It.IsAny<UseMigrationsOptions>()), Times.Once);
     }
 }

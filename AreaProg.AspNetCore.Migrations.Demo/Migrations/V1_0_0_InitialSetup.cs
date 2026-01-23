@@ -1,25 +1,16 @@
+namespace AreaProg.AspNetCore.Migrations.Demo.Migrations;
+
 using AreaProg.AspNetCore.Migrations.Demo.Data;
 using AreaProg.AspNetCore.Migrations.Demo.Data.Entities;
 using AreaProg.AspNetCore.Migrations.Abstractions;
 using Microsoft.Extensions.Logging;
 
-namespace AreaProg.AspNetCore.Migrations.Demo.Migrations;
-
 /// <summary>
 /// Initial migration that seeds the database with sample data.
 /// Demonstrates the use of the FirstTime property.
 /// </summary>
-public class V1_0_0_InitialSetup : BaseMigration
+public class V1_0_0_InitialSetup(AppDbContext dbContext, ILogger<V1_0_0_InitialSetup> logger) : BaseMigration
 {
-    private readonly AppDbContext _dbContext;
-    private readonly ILogger<V1_0_0_InitialSetup> _logger;
-
-    public V1_0_0_InitialSetup(AppDbContext dbContext, ILogger<V1_0_0_InitialSetup> logger)
-    {
-        _dbContext = dbContext;
-        _logger = logger;
-    }
-
     public override Version Version => new(1, 0, 0);
 
     public override async Task UpAsync()
@@ -28,7 +19,7 @@ public class V1_0_0_InitialSetup : BaseMigration
         // Use it for operations that should only run once (like seeding data).
         if (FirstTime)
         {
-            _logger.LogInformation("Running initial setup migration for the first time");
+            logger.LogInformation("Running initial setup migration for the first time");
 
             // Seed initial products
             var products = new[]
@@ -56,20 +47,20 @@ public class V1_0_0_InitialSetup : BaseMigration
                 }
             };
 
-            _dbContext.Products.AddRange(products);
-            await _dbContext.SaveChangesAsync();
+            dbContext.Products.AddRange(products);
+            await dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("Seeded {Count} initial products", products.Length);
+            logger.LogInformation("Seeded {Count} initial products", products.Length);
         }
         else
         {
             // This runs on subsequent application startups during development.
             // The current version is always re-executed to facilitate iteration.
-            _logger.LogInformation("Initial setup migration re-executed (not first time)");
+            logger.LogInformation("Initial setup migration re-executed (not first time)");
         }
 
         // Idempotent operations can run every time
         // For example, ensuring configuration is correct
-        _logger.LogInformation("Initial setup migration completed");
+        logger.LogInformation("Initial setup migration completed");
     }
 }

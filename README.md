@@ -236,19 +236,40 @@ public class Migration_1_1_0(MyDbContext db, IEmailService email) : BaseMigratio
 }
 ```
 
-## The `FirstTime` Property
+## Controlling Re-execution with `EnforceLatestMigration`
 
-### Why Re-execution?
+By default, the migration matching the current registered version is **re-executed on each application startup**. This facilitates development workflows:
 
-The migration matching the current registered version is **re-executed on each application startup**. This is intentional to facilitate development workflows:
-
-- You can iterate on a migration without manually rolling back the database version
+- Iterate on a migration without manually rolling back the database version
 - No need to delete version records or reset state between debugging sessions
 - Test your migration logic repeatedly until it works correctly
 
-### Handling Re-execution
+### Disabling Re-execution in Production
 
-To handle this behavior, you have two strategies:
+For production environments, you can disable this behavior using `EnforceLatestMigration`:
+
+```csharp
+await app.UseMigrationsAsync(opts =>
+{
+    opts.EnforceLatestMigration = env.IsDevelopment();
+});
+```
+
+| `EnforceLatestMigration` | Behavior |
+|--------------------------|----------|
+| `true` (default) | Re-executes current version migration (`>= current`) |
+| `false` | Only runs new migrations (`> current`) |
+
+**Benefits of `EnforceLatestMigration = false` in production:**
+- Faster startup (skips unnecessary re-execution)
+- Cleaner logs (no repeated "Applying version X.Y.Z" messages)
+- Makes re-execution an intentional development choice
+
+## The `FirstTime` Property
+
+When a migration is re-executed (with `EnforceLatestMigration = true`), use the `FirstTime` property to distinguish between first-time execution and re-execution.
+
+### Handling Re-execution
 
 **Strategy 1: Use the `FirstTime` property**
 
@@ -508,6 +529,12 @@ app.UseMigrations();
 
 // Asynchronous
 await app.UseMigrationsAsync();
+
+// With options
+await app.UseMigrationsAsync(opts =>
+{
+    opts.EnforceLatestMigration = env.IsDevelopment();
+});
 ```
 
 ## Demo Project

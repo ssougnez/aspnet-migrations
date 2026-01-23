@@ -49,7 +49,10 @@ var app = builder.Build();
 // - RunAfterDatabaseMigrationAsync() hook (if EF migrations ran)
 // - Application migrations (BaseMigration.UpAsync() for each pending version)
 // - RunAfterAsync() hook
-await app.UseMigrationsAsync();
+await app.UseMigrationsAsync(opt =>
+{
+    opt.EnforceLatestMigration = false;
+});
 
 // Configure Swagger in development
 if (app.Environment.IsDevelopment())

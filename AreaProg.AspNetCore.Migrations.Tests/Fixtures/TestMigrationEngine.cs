@@ -23,6 +23,7 @@ public class TestMigrationEngine : BaseMigrationEngine
     public static List<Version> StaticRegisteredVersions { get; } = new();
     public static int StaticInstanceCount { get; private set; }
     public static List<string> StaticCallOrder { get; } = new();
+    public static List<Version> StaticPreAppliedVersions { get; } = new();
 
     // Instance tracking properties
     public bool RunBeforeAsyncCalled { get; private set; }
@@ -46,6 +47,7 @@ public class TestMigrationEngine : BaseMigrationEngine
         StaticRegisteredVersions.Clear();
         StaticInstanceCount = 0;
         StaticCallOrder.Clear();
+        StaticPreAppliedVersions.Clear();
     }
 
     public TestMigrationEngine() : this(true)
@@ -57,6 +59,8 @@ public class TestMigrationEngine : BaseMigrationEngine
     {
         _shouldRun = shouldRun;
         StaticInstanceCount++;
+        // Copy any pre-applied versions from static configuration
+        _appliedVersions.AddRange(StaticPreAppliedVersions);
     }
 
     public TestMigrationEngine(IEnumerable<Version> appliedVersions) : this(true)

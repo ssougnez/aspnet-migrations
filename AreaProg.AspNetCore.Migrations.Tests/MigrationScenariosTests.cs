@@ -3,6 +3,7 @@ namespace AreaProg.AspNetCore.Migrations.Tests;
 using AreaProg.AspNetCore.Migrations.Abstractions;
 using AreaProg.AspNetCore.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Interfaces;
+using AreaProg.AspNetCore.Migrations.Models;
 using AreaProg.AspNetCore.Migrations.Tests.Fixtures;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -313,5 +314,172 @@ public class HookExecutionTests
         // Assert
         migration.CacheWhenExecuted.Should().ContainKey("captured");
         migration.CacheWhenExecuted!["captured"].Should().Be("data");
+    }
+}
+
+/// <summary>
+/// Tests for EnforceLatestMigration option behavior.
+/// </summary>
+public class EnforceLatestMigrationTests : IDisposable
+{
+    public EnforceLatestMigrationTests()
+    {
+        TestMigrationEngine.Reset();
+        Version1Migration.Reset();
+        Version2Migration.Reset();
+        Version3Migration.Reset();
+    }
+
+    public void Dispose()
+    {
+        TestMigrationEngine.Reset();
+        Version1Migration.Reset();
+        Version2Migration.Reset();
+        Version3Migration.Reset();
+    }
+
+    [Fact]
+    public async Task WithoutEnforceLatestMigration_CurrentVersionMigration_ShouldNotReExecute()
+    {
+        // Arrange - Set up engine with version 2.0.0 already applied
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(1, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(2, 0, 0));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act - Run without EnforceLatestMigration (default is false)
+        await engine.RunAsync(new UseMigrationsOptions { EnforceLatestMigration = false });
+
+        // Assert - Only version 3 should run (it's > current 2.0.0)
+        // Versions 1 and 2 should NOT run because they are <= current
+        Version1Migration.WasExecuted.Should().BeFalse();
+        Version2Migration.WasExecuted.Should().BeFalse();
+        Version3Migration.WasExecuted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WithEnforceLatestMigration_CurrentVersionMigration_ShouldReExecute()
+    {
+        // Arrange - Set up engine with version 2.0.0 already applied
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(1, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(2, 0, 0));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act - Run with EnforceLatestMigration = true
+        await engine.RunAsync(new UseMigrationsOptions { EnforceLatestMigration = true });
+
+        // Assert - Versions 2 and 3 should run (>= current 2.0.0)
+        // Version 1 should NOT run because it's < current
+        Version1Migration.WasExecuted.Should().BeFalse();
+        Version2Migration.WasExecuted.Should().BeTrue();
+        Version3Migration.WasExecuted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WithEnforceLatestMigration_CurrentVersionMigration_FirstTime_ShouldBeFalse()
+    {
+        // Arrange - Set up engine with version 2.0.0 already applied
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(1, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(2, 0, 0));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act
+        await engine.RunAsync(new UseMigrationsOptions { EnforceLatestMigration = true });
+
+        // Assert - Version 2 should have FirstTime = false (re-execution)
+        // Version 3 should have FirstTime = true (first run)
+        Version2Migration.FirstTimeWhenExecuted.Should().BeFalse();
+        Version3Migration.FirstTimeWhenExecuted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task DefaultBehavior_ShouldReExecuteCurrentVersion_ForBackwardCompatibility()
+    {
+        // Arrange - Set up engine with version 3.0.0 already applied (latest)
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(1, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(2, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(3, 0, 0));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act - Run with default options (EnforceLatestMigration defaults to true)
+        await engine.RunAsync();
+
+        // Assert - Version 3 should re-execute (default is backward compatible)
+        Version1Migration.WasExecuted.Should().BeFalse();
+        Version2Migration.WasExecuted.Should().BeFalse();
+        Version3Migration.WasExecuted.Should().BeTrue();
+        Version3Migration.FirstTimeWhenExecuted.Should().BeFalse(); // Re-execution
+    }
+
+    [Fact]
+    public async Task WithEnforceLatestMigration_AllApplied_ShouldReExecuteLatest()
+    {
+        // Arrange - Set up engine with all versions already applied
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(1, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(2, 0, 0));
+        TestMigrationEngine.StaticPreAppliedVersions.Add(new Version(3, 0, 0));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act - Run with EnforceLatestMigration = true
+        await engine.RunAsync(new UseMigrationsOptions { EnforceLatestMigration = true });
+
+        // Assert - Only version 3 should re-execute (it's the current/latest)
+        Version1Migration.WasExecuted.Should().BeFalse();
+        Version2Migration.WasExecuted.Should().BeFalse();
+        Version3Migration.WasExecuted.Should().BeTrue();
+        Version3Migration.FirstTimeWhenExecuted.Should().BeFalse(); // Re-execution
+    }
+
+    [Fact]
+    public async Task FreshInstall_BothModes_ShouldExecuteAllMigrations()
+    {
+        // Arrange - No pre-applied versions (fresh install)
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplicationMigrations<TestMigrationEngine>();
+        var serviceProvider = services.BuildServiceProvider();
+        var engine = serviceProvider.GetRequiredService<IApplicationMigrationEngine>();
+
+        // Act - Both modes should execute all migrations on fresh install
+        await engine.RunAsync(new UseMigrationsOptions { EnforceLatestMigration = false });
+
+        // Assert
+        Version1Migration.WasExecuted.Should().BeTrue();
+        Version2Migration.WasExecuted.Should().BeTrue();
+        Version3Migration.WasExecuted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void UseMigrationsOptions_DefaultValue_ShouldBeTrue_ForBackwardCompatibility()
+    {
+        // Arrange & Act
+        var options = new UseMigrationsOptions();
+
+        // Assert - default is true for backward compatibility
+        options.EnforceLatestMigration.Should().BeTrue();
     }
 }

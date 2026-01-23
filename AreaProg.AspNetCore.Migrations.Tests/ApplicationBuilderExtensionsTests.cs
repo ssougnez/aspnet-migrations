@@ -2,6 +2,7 @@ namespace AreaProg.AspNetCore.Migrations.Tests;
 
 using AreaProg.AspNetCore.Migrations.Extensions;
 using AreaProg.AspNetCore.Migrations.Interfaces;
+using AreaProg.AspNetCore.Migrations.Models;
 using AreaProg.AspNetCore.Migrations.Tests.Fixtures;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
@@ -62,7 +63,7 @@ public class ApplicationBuilderExtensionsTests : IDisposable
         appBuilderMock.Object.UseMigrations();
 
         // Assert
-        engineMock.Verify(x => x.Run(), Times.Once);
+        engineMock.Verify(x => x.Run(It.IsAny<UseMigrationsOptions>()), Times.Once);
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class ApplicationBuilderExtensionsTests : IDisposable
     {
         // Arrange
         var engineMock = new Mock<IApplicationMigrationEngine>();
-        engineMock.Setup(x => x.RunAsync()).Returns(Task.CompletedTask);
+        engineMock.Setup(x => x.RunAsync(It.IsAny<UseMigrationsOptions>())).Returns(Task.CompletedTask);
         var services = new ServiceCollection();
         services.AddSingleton(engineMock.Object);
         var serviceProvider = services.BuildServiceProvider();
@@ -116,7 +117,7 @@ public class ApplicationBuilderExtensionsTests : IDisposable
         await appBuilderMock.Object.UseMigrationsAsync();
 
         // Assert
-        engineMock.Verify(x => x.RunAsync(), Times.Once);
+        engineMock.Verify(x => x.RunAsync(It.IsAny<UseMigrationsOptions>()), Times.Once);
     }
 
     [Fact]
@@ -157,7 +158,7 @@ public class ApplicationBuilderExtensionsTests : IDisposable
         // Arrange
         var completedSuccessfully = false;
         var engineMock = new Mock<IApplicationMigrationEngine>();
-        engineMock.Setup(x => x.RunAsync()).Returns(async () =>
+        engineMock.Setup(x => x.RunAsync(It.IsAny<UseMigrationsOptions>())).Returns(async () =>
         {
             await Task.Delay(10);
             completedSuccessfully = true;
