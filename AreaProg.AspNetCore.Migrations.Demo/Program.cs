@@ -86,7 +86,7 @@ app.MapGet("/products", async (AppDbContext db) =>
     return Results.Ok(products);
 })
 .WithName("GetProducts")
-.WithOpenApi();
+;
 
 // GET /categories - List all categories with product count
 app.MapGet("/categories", async (AppDbContext db) =>
@@ -104,7 +104,7 @@ app.MapGet("/categories", async (AppDbContext db) =>
     return Results.Ok(categories);
 })
 .WithName("GetCategories")
-.WithOpenApi();
+;
 
 // POST /products - Create a new product
 app.MapPost("/products", async (AppDbContext db, ProductCreateRequest request) =>
@@ -124,7 +124,7 @@ app.MapPost("/products", async (AppDbContext db, ProductCreateRequest request) =
     return Results.Created($"/products/{product.Id}", product);
 })
 .WithName("CreateProduct")
-.WithOpenApi();
+;
 
 // GET /migrations - Show migration history
 app.MapGet("/migrations", async (AppDbContext db) =>
@@ -141,7 +141,7 @@ app.MapGet("/migrations", async (AppDbContext db) =>
     return Results.Ok(migrations);
 })
 .WithName("GetMigrations")
-.WithOpenApi();
+;
 
 app.Run();
 

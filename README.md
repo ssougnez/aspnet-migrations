@@ -1,6 +1,10 @@
 # AreaProg.AspNetCore.Migrations
 
-Application-level migrations for ASP.NET Core. Run versioned code at startup, complementing Entity Framework Core database migrations.
+Application-level migrations for .NET applications. Run versioned code at startup, complementing Entity Framework Core database migrations.
+
+Works with ASP.NET Core, console applications, and worker services.
+
+> **Note:** The "AspNetCore" in the package name is historical. Since v2.2.0, the library fully supports non-ASP.NET Core applications (console apps, worker services, etc.) via `IHost` extensions.
 
 ## Why use this?
 
@@ -86,19 +90,37 @@ public class Migration_1_0_0(MyDbContext db) : BaseMigration
 
 ### 4. Register and Run
 
+**ASP.NET Core (Web API, MVC, Blazor Server):**
+
 ```csharp
 // Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<MyDbContext>(...);
-
 builder.Services.AddApplicationMigrations<MyMigrationEngine, MyDbContext>();
 
 var app = builder.Build();
 
-app.UseMigrations();
+app.UseMigrations();  // IApplicationBuilder extension
 
 app.Run();
+```
+
+**Console Applications and Worker Services:**
+
+```csharp
+// Program.cs
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddDbContext<MyDbContext>(...);
+        services.AddApplicationMigrations<MyMigrationEngine, MyDbContext>();
+    })
+    .Build();
+
+host.RunMigrations();  // IHost extension
+
+await host.RunAsync();
 ```
 
 That's it! At startup:
@@ -523,6 +545,8 @@ builder.Services.AddApplicationMigrations<DefaultSqlServerMigrationEngine>();
 
 ## Async Support
 
+**ASP.NET Core (`IApplicationBuilder`):**
+
 ```csharp
 // Synchronous (blocks until complete)
 app.UseMigrations();
@@ -537,9 +561,27 @@ await app.UseMigrationsAsync(opts =>
 });
 ```
 
-## Demo Project
+**Console Apps and Worker Services (`IHost`):**
 
-A complete demo application is included in the repository to show all features in action:
+```csharp
+// Synchronous (blocks until complete)
+host.RunMigrations();
+
+// Asynchronous
+await host.RunMigrationsAsync();
+
+// With options
+await host.RunMigrationsAsync(opts =>
+{
+    opts.EnforceLatestMigration = false;
+});
+```
+
+## Demo Projects
+
+Two demo applications are included in the repository:
+
+### ASP.NET Core Web API Demo
 
 ```bash
 cd AreaProg.AspNetCore.Migrations.Demo
@@ -555,6 +597,22 @@ The demo includes:
 - **V1_2_0_AddProductMetrics**: Demonstrates `Cache` for data capture
 
 See the [Demo README](AreaProg.AspNetCore.Migrations.Demo/README.md) for details.
+
+### Console Application Demo
+
+Demonstrates using `IHost.RunMigrationsAsync()` in a non-ASP.NET Core application:
+
+```bash
+cd AreaProg.AspNetCore.Migrations.ConsoleDemo
+dotnet run
+```
+
+The demo includes:
+- **ConsoleMigrationEngine**: Custom engine with lifecycle hooks
+- **V1_0_0_InitialSetup**: Uses `FirstTime` for seed data
+- **V1_1_0_AddMoreSettings**: Idempotent upsert pattern
+
+See the [ConsoleDemo README](AreaProg.AspNetCore.Migrations.ConsoleDemo/README.md) for details.
 
 ## Target Frameworks
 
@@ -641,6 +699,24 @@ builder.Services.AddApplicationMigrations<MyMigrationEngine>();
 ```
 
 Your engine can store versions anywhere: a file, Redis, a custom table via raw SQL, etc.
+
+### Can I use this in a console app or worker service?
+
+**Yes.** Use the `IHost` extension methods:
+
+```csharp
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddApplicationMigrations<MyMigrationEngine>();
+    })
+    .Build();
+
+await host.RunMigrationsAsync();
+await host.RunAsync();
+```
+
+This is useful for scenarios like migrating Redis schemas, running background workers with versioned setup logic, or any non-web .NET application.
 
 ### What happens if two servers start simultaneously?
 

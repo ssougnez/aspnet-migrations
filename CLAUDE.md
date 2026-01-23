@@ -6,7 +6,7 @@ For complete documentation, see the [README.md](README.md).
 
 ## Project Overview
 
-AreaProg.AspNetCore.Migrations is a .NET class library (NuGet package) that provides application-level migration infrastructure for ASP.NET Core applications. It complements Entity Framework Core database migrations by enabling versioned application migrations with lifecycle hooks.
+AreaProg.AspNetCore.Migrations is a .NET class library (NuGet package) that provides application-level migration infrastructure for .NET applications (ASP.NET Core, console apps, worker services). It complements Entity Framework Core database migrations by enabling versioned application migrations with lifecycle hooks.
 
 ## Build Commands
 
@@ -50,18 +50,20 @@ services.AddApplicationMigrations<MyMigrationEngine>(options =>
 
 ### Running Migrations
 
-Use the extension methods on `IApplicationBuilder` to run migrations at startup:
+**ASP.NET Core** - Use extension methods on `IApplicationBuilder`:
 
 ```csharp
 var app = builder.Build();
-
-// Synchronous
-app.UseMigrations();
-
-// Or asynchronous
-await app.UseMigrationsAsync();
-
+app.UseMigrations();        // or await app.UseMigrationsAsync();
 app.Run();
+```
+
+**Console Apps / Worker Services** - Use extension methods on `IHost`:
+
+```csharp
+var host = Host.CreateDefaultBuilder(args).Build();
+host.RunMigrations();       // or await host.RunMigrationsAsync();
+await host.RunAsync();
 ```
 
 ### Public Interface

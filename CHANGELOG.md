@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `IHost` extension methods for console apps and worker services
+
+New extension methods on `IHost` allow running migrations in non-ASP.NET Core applications (console apps, worker services, background jobs).
+
+**Usage:**
+```csharp
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddDbContext<MyDbContext>(options => options.UseSqlite("..."));
+        services.AddApplicationMigrations<MyMigrationEngine, MyDbContext>();
+    })
+    .Build();
+
+// Run migrations using IHost extension
+await host.RunMigrationsAsync();
+
+await host.RunAsync();
+```
+
+**Available methods:**
+- `host.RunMigrations()` - Synchronous execution
+- `host.RunMigrations(Action<UseMigrationsOptions>)` - Synchronous with options
+- `host.RunMigrationsAsync()` - Asynchronous execution
+- `host.RunMigrationsAsync(Action<UseMigrationsOptions>)` - Asynchronous with options
+
+**Why `RunMigrations` instead of `UseMigrations`?**
+
+ASP.NET Core's `WebApplication` implements both `IApplicationBuilder` and `IHost`. Using different method names avoids ambiguity:
+- `UseMigrations()` → ASP.NET Core (`IApplicationBuilder`)
+- `RunMigrations()` → Console/Worker (`IHost`)
+
+**Package changes:**
+
+The `FrameworkReference` to `Microsoft.AspNetCore.App` has been replaced with specific `PackageReference` dependencies:
+- `Microsoft.AspNetCore.Http.Abstractions` - For `IApplicationBuilder` extensions
+- `Microsoft.Extensions.Hosting.Abstractions` - For `IHost` extensions
+
+This allows the package to be used in non-ASP.NET Core applications without pulling in the entire ASP.NET Core framework.
+
+---
+
 #### `EnforceLatestMigration` option for `UseMigrations` / `UseMigrationsAsync`
 
 New options callback on `UseMigrations()` and `UseMigrationsAsync()` to control whether the current version migration is re-executed on application startup.
