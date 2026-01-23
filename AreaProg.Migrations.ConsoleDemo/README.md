@@ -1,6 +1,6 @@
 # Console Application Demo
 
-This project demonstrates using `AreaProg.AspNetCore.Migrations` in a **console application** (non-ASP.NET Core).
+This project demonstrates using `AreaProg.Migrations` in a **console application** (non-ASP.NET Core).
 
 ## Key Difference from ASP.NET Core
 
@@ -27,7 +27,7 @@ await host.RunAsync();
 ## Running the Demo
 
 ```bash
-cd AreaProg.AspNetCore.Migrations.ConsoleDemo
+cd AreaProg.Migrations.ConsoleDemo
 dotnet run
 ```
 

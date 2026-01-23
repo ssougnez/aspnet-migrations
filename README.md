@@ -606,11 +606,11 @@ Two demo applications are included in the repository:
 ### ASP.NET Core Web API Demo
 
 ```bash
-cd AreaProg.AspNetCore.Migrations.Demo
+cd AreaProg.Migrations.Demo
 dotnet run
 ```
 
-Then open http://localhost:5254/swagger to explore the API.
+Then open http://localhost:5254/scalar/v1 to explore the API.
 
 The demo includes:
 - **AppMigrationEngine**: Full engine implementation with SQLite storage
@@ -618,14 +618,14 @@ The demo includes:
 - **V1_1_0_AddCategories**: Demonstrates idempotent upsert patterns
 - **V1_2_0_AddProductMetrics**: Demonstrates `Cache` for data capture
 
-See the [Demo README](AreaProg.AspNetCore.Migrations.Demo/README.md) for details.
+See the [Demo README](AreaProg.Migrations.Demo/README.md) for details.
 
 ### Console Application Demo
 
 Demonstrates using `IHost.RunMigrationsAsync()` in a non-ASP.NET Core application:
 
 ```bash
-cd AreaProg.AspNetCore.Migrations.ConsoleDemo
+cd AreaProg.Migrations.ConsoleDemo
 dotnet run
 ```
 
@@ -634,7 +634,7 @@ The demo includes:
 - **V1_0_0_InitialSetup**: Uses `FirstTime` for seed data
 - **V1_1_0_AddMoreSettings**: Idempotent upsert pattern
 
-See the [ConsoleDemo README](AreaProg.AspNetCore.Migrations.ConsoleDemo/README.md) for details.
+See the [ConsoleDemo README](AreaProg.Migrations.ConsoleDemo/README.md) for details.
 
 ## Target Frameworks
 

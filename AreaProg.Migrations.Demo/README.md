@@ -1,20 +1,20 @@
-# AreaProg.AspNetCore.Migrations Demo
+# AreaProg.Migrations Demo
 
 This demo application shows how to use the **AreaProg.AspNetCore.Migrations** NuGet package in a real ASP.NET Core application.
 
 ## Running the Demo
 
 ```bash
-cd AreaProg.AspNetCore.Migrations.Demo
+cd AreaProg.Migrations.Demo
 dotnet run
 ```
 
-Then open http://localhost:5254/swagger to explore the API.
+Then open http://localhost:5254/scalar/v1 to explore the API.
 
 ## Project Structure
 
 ```
-AreaProg.AspNetCore.Migrations.Demo/
+AreaProg.Migrations.Demo/
 ├── Data/
 │   ├── Entities/
 │   │   ├── Product.cs          # Sample entity

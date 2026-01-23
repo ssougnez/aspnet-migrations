@@ -79,7 +79,7 @@ namespace AreaProg.Migrations.Demo.Data.EFMigrations
                     b.ToTable("Products");
                 });
 
-            modelBuilder.Entity("AreaProg.AspNetCore.Migrations.Models.AppliedMigration", b =>
+            modelBuilder.Entity("AreaProg.Migrations.Models.AppliedMigration", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()

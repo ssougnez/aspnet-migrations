@@ -6,7 +6,7 @@ For complete documentation, see the [README.md](README.md).
 
 ## Project Overview
 
-AreaProg.AspNetCore.Migrations is a .NET class library (NuGet package) that provides application-level migration infrastructure for .NET applications (ASP.NET Core, console apps, worker services). It complements Entity Framework Core database migrations by enabling versioned application migrations with lifecycle hooks.
+AreaProg.Migrations is a .NET class library split into two NuGet packages (`AreaProg.Migrations` for console/worker apps and `AreaProg.AspNetCore.Migrations` for ASP.NET Core) that provides application-level migration infrastructure. It complements Entity Framework Core database migrations by enabling versioned application migrations with lifecycle hooks.
 
 ## Build Commands
 
