@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net6.0;net8.0;net9.0;net10.0</TargetFrameworks>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Package metadata -->
+		<PackageId>AreaProg.Migrations</PackageId>
+		<Description>Application-level migrations for .NET applications. Run versioned code at startup, complementing Entity Framework Core database migrations. Works with console apps, worker services, and ASP.NET Core.</Description>
+		<Authors>AreaProg</Authors>
+		<Company>AreaProg</Company>
+		<PackageTags>migration;efcore;database;dotnet</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<RepositoryUrl>https://github.com/ssougnez/AreaProg.Migrations</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/ssougnez/AreaProg.Migrations</PackageProjectUrl>
+
+		<!-- Versioning (overridden by CI when publishing) -->
+		<Version>0.0.0-local</Version>
+
+		<!-- Build options -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!-- Dependencies for net6.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.36" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.36" />
+	</ItemGroup>
+
+	<!-- Dependencies for net8.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" />
+	</ItemGroup>
+
+	<!-- Dependencies for net9.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+	</ItemGroup>
+
+	<!-- Dependencies for net10.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+	</ItemGroup>
+
+	<!-- Package assets -->
+	<ItemGroup>
+		<None Include="..\icon.png" Pack="true" PackagePath="\" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

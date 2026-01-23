@@ -5,6 +5,129 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-01-23
+
+### Breaking Changes
+
+#### Package split: `AreaProg.Migrations` + `AreaProg.AspNetCore.Migrations`
+
+The library has been split into two packages for cleaner separation of concerns:
+
+| Package | Purpose | Dependencies |
+|---------|---------|--------------|
+| `AreaProg.Migrations` | Core library | EF Core, Microsoft.Extensions.Hosting.Abstractions |
+| `AreaProg.AspNetCore.Migrations` | ASP.NET Core extensions | AreaProg.Migrations, Microsoft.AspNetCore.Http.Abstractions |
+
+**For console apps, worker services, or any non-ASP.NET Core application:**
+```bash
+dotnet add package AreaProg.Migrations
+```
+
+**For ASP.NET Core applications:**
+```bash
+dotnet add package AreaProg.AspNetCore.Migrations
+```
+
+The ASP.NET Core package automatically includes the core package as a dependency.
+
+#### Namespace changes
+
+All core types have moved from `AreaProg.AspNetCore.Migrations.*` to `AreaProg.Migrations.*`:
+
+| Type | Old Namespace (v2.x) | New Namespace (v3.x) |
+|------|---------------------|----------------------|
+| `BaseMigration` | `AreaProg.AspNetCore.Migrations.Abstractions` | `AreaProg.Migrations.Abstractions` |
+| `BaseMigrationEngine` | `AreaProg.AspNetCore.Migrations.Abstractions` | `AreaProg.Migrations.Abstractions` |
+| `EfCoreMigrationEngine` | `AreaProg.AspNetCore.Migrations.Abstractions` | `AreaProg.Migrations.Abstractions` |
+| `SqlServerMigrationEngine` | `AreaProg.AspNetCore.Migrations.Abstractions` | `AreaProg.Migrations.Abstractions` |
+| `DefaultEfCoreMigrationEngine` | `AreaProg.AspNetCore.Migrations.Engines` | `AreaProg.Migrations.Engines` |
+| `DefaultSqlServerMigrationEngine` | `AreaProg.AspNetCore.Migrations.Engines` | `AreaProg.Migrations.Engines` |
+| `AppliedMigration` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.Migrations.Models` |
+| `UseMigrationsOptions` | `AreaProg.AspNetCore.Migrations.Models` | `AreaProg.Migrations.Models` |
+| `ApplicationMigrationsOptions` | `AreaProg.AspNetCore.Migrations.Extensions` | `AreaProg.Migrations.Extensions` |
+| `AddApplicationMigrations()` | `AreaProg.AspNetCore.Migrations.Extensions` | `AreaProg.Migrations.Extensions` |
+| `IApplicationMigrationEngine` | `AreaProg.AspNetCore.Migrations.Interfaces` | `AreaProg.Migrations.Interfaces` |
+
+**The ASP.NET Core extension stays in its original namespace:**
+- `UseMigrations()` / `UseMigrationsAsync()` → `AreaProg.AspNetCore.Migrations.Extensions`
+
+### Added
+
+#### `IHost` extension methods for console apps and worker services
+
+New extension methods on `IHost` allow running migrations in non-ASP.NET Core applications:
+
+```csharp
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddDbContext<MyDbContext>(options => options.UseSqlite("..."));
+        services.AddApplicationMigrations<MyMigrationEngine, MyDbContext>();
+    })
+    .Build();
+
+await host.RunMigrationsAsync();
+await host.RunAsync();
+```
+
+**Available methods (in `AreaProg.Migrations.Extensions`):**
+- `host.RunMigrations()` - Synchronous execution
+- `host.RunMigrations(Action<UseMigrationsOptions>)` - Synchronous with options
+- `host.RunMigrationsAsync()` - Asynchronous execution
+- `host.RunMigrationsAsync(Action<UseMigrationsOptions>)` - Asynchronous with options
+
+#### `EnforceLatestMigration` option
+
+Control whether the current version migration is re-executed on startup:
+
+```csharp
+await app.UseMigrationsAsync(opts =>
+{
+    opts.EnforceLatestMigration = env.IsDevelopment(); // Enable re-execution in development
+});
+```
+
+| `EnforceLatestMigration` | Behavior |
+|--------------------------|----------|
+| `true` | Re-executes current version (development-friendly) |
+| `false` (default) | Skips current version (production-recommended) |
+
+### Migration Guide from v2.x to v3.x
+
+1. **Update package reference:**
+
+   ```xml
+   <!-- For ASP.NET Core apps (most common) -->
+   <PackageReference Include="AreaProg.AspNetCore.Migrations" Version="3.0.0" />
+
+   <!-- For console apps / worker services -->
+   <PackageReference Include="AreaProg.Migrations" Version="3.0.0" />
+   ```
+
+2. **Update using statements:**
+
+   ```csharp
+   // Before (v2.x)
+   using AreaProg.AspNetCore.Migrations.Abstractions;
+   using AreaProg.AspNetCore.Migrations.Extensions;
+   using AreaProg.AspNetCore.Migrations.Models;
+
+   // After (v3.x)
+   using AreaProg.Migrations.Abstractions;
+   using AreaProg.Migrations.Extensions;
+   using AreaProg.Migrations.Models;
+   using AreaProg.AspNetCore.Migrations.Extensions; // Only for UseMigrations()
+   ```
+
+3. **For ASP.NET Core apps**, you need both namespaces:
+   - `AreaProg.Migrations.Extensions` for `AddApplicationMigrations()`
+   - `AreaProg.AspNetCore.Migrations.Extensions` for `UseMigrations()`
+
+4. **For console apps**, you only need:
+   - `AreaProg.Migrations.Extensions` for both `AddApplicationMigrations()` and `RunMigrations()`
+
+---
+
 ## [2.1.0] - 2026-01-17
 
 ### Added
